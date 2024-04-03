@@ -32,7 +32,7 @@ jobs:
             - name: Migrate database
               run: |
                   sudo apt-get install libpq-dev -y
-                  SKIP_DOCKER=true ./scripts/init_db.sh
+                  SKIP_DOCKER=true ./scripts/init_db_script.sh
             - name: Run tests
               run: cargo test
 
@@ -74,6 +74,6 @@ jobs:
             - name: Migrate database
               run: |
                   sudo apt-get install libpq-dev -y
-                  SKIP_DOCKER=true ./scripts/init_db.sh
+                  SKIP_DOCKER=true ./scripts/init_db_script.sh
             - name: Linting
               run: cargo clippy -- -D warnings
