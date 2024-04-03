@@ -5,5 +5,23 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+path = "src/main.rs"
+name = "bom_version_control"
+
 [dependencies]
 actix-web = "4.5.1"
+config = "0.14.0"
+diesel = { version = "2.1.5", features = ["postgres", "uuid", "r2d2"] }
+dotenv = "0.15.0"
+secrecy = { version = "0.8.0", features = ["serde"] }
+serde = { version = "1.0.197", features = ["derive"] }
+tokio = { version = "1.37.0", features = ["rt-multi-thread", "macros"] }
+uuid = { version = "1.8.0", features = ["serde", "v4"] }
+
+[dev-dependencies]
+diesel_cli = { version = "2.1.1", features = ["postgres"] }
+reqwest = "0.12.2"

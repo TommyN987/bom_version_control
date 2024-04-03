@@ -1,0 +1,8 @@
+app:
+    port: 8000
+db:
+    host: "localhost"
+    port: 5432
+    username: "postgres"
+    password: "password"
+    db_name: "bom_version_control"

@@ -1,0 +1,79 @@
+name: bom_version_control_ci
+
+on: [push, pull_request]
+
+env:
+    CARGO_TERM_COLOR: always
+    DIESEL_FEATURES: "postgres"
+
+jobs:
+    test:
+        name: Test
+        runs-on: ubuntu-latest
+        services:
+            postgres:
+                image: postgres:14
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: password
+                    POSTGRES_DB: postgres
+                ports:
+                    - 5432:5432
+        steps:
+            - uses: actions/checkout@v3
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  key: diesel
+            - name: Install diesel-cli
+              run:
+                  cargo install diesel_cli --features ${{ env.DIESEL_FEATURES }}
+                  --locked
+            - name: Migrate database
+              run: |
+                  sudo apt-get install libpq-dev -y
+                  SKIP_DOCKER=true ./scripts/init_db.sh
+            - name: Run tests
+              run: cargo test
+
+    fmt:
+        name: Rustfmt
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: rustfmt
+            - name: Enforce formatting
+              run: cargo fmt --check
+
+    clippy:
+        name: Clippy
+        runs-on: ubuntu-latest
+        services:
+            postgres:
+                image: postgres:14
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: password
+                    POSTGRES_DB: postgres
+                ports:
+                    - 5432:5432
+        steps:
+            - uses: actions/checkout@v3
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: clippy
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  key: diesel
+            - name: Install diesel-cli
+              run:
+                  cargo install diesel_cli --features ${{ env.DIESEL_FEATURES }}
+                  --locked
+            - name: Migrate database
+              run: |
+                  sudo apt-get install libpq-dev -y
+                  SKIP_DOCKER=true ./scripts/init_db.sh
+            - name: Linting
+              run: cargo clippy -- -D warnings
