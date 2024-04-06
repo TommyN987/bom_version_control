@@ -1,4 +1,6 @@
 pub mod configuration;
-pub mod db_connection;
+pub mod db;
+pub mod domain;
 pub mod routes;
+pub mod schema;
 pub mod startup;
