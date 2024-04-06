@@ -1,6 +1,6 @@
 use std::net::TcpListener;
 
-use bom_version_control::{configuration::get_config, db_connection::DbPool};
+use bom_version_control::{configuration::get_config, db::DbPool};
 use diesel::{
     r2d2::{self, ConnectionManager, CustomizeConnection},
     Connection, PgConnection,
