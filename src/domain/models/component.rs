@@ -1,10 +1,12 @@
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub struct Price {
     pub value: i32,
     pub currency: String,
 }
 
+#[derive(Debug)]
 pub struct Component {
     pub id: Uuid,
     pub name: String,

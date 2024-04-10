@@ -14,8 +14,14 @@ name = "bom_version_control"
 
 [dependencies]
 actix-web = "4.5.1"
+chrono = { version = "0.4.37", features = ["serde"] }
 config = "0.14.0"
-diesel = { version = "2.1.5", features = ["postgres", "uuid", "r2d2"] }
+diesel = { version = "2.1.5", features = [
+    "postgres",
+    "uuid",
+    "r2d2",
+    "chrono",
+] }
 dotenv = "0.15.0"
 secrecy = { version = "0.8.0", features = ["serde"] }
 serde = { version = "1.0.197", features = ["derive"] }

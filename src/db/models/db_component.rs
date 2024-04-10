@@ -7,7 +7,7 @@ use crate::{
     schema::components,
 };
 
-#[derive(Debug, Deserialize, Insertable, Queryable)]
+#[derive(Debug, PartialEq, Deserialize, Insertable, Queryable)]
 #[diesel(table_name = components)]
 pub struct DbComponent {
     pub id: Uuid,
