@@ -34,3 +34,12 @@ impl From<DbComponent> for Component {
         }
     }
 }
+
+pub struct NewComponent {
+    pub name: String,
+    pub part_number: String,
+    pub description: Option<String>,
+    pub supplier: String,
+    pub price_value: i32,
+    pub price_currency: String,
+}

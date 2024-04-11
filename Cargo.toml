@@ -23,6 +23,7 @@ diesel = { version = "2.1.5", features = [
     "chrono",
 ] }
 dotenv = "0.15.0"
+rand = "0.8.5"
 secrecy = { version = "0.8.0", features = ["serde"] }
 serde = { version = "1.0.197", features = ["derive"] }
 tokio = { version = "1.37.0", features = ["rt-multi-thread", "macros"] }
