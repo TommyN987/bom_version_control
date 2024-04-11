@@ -8,6 +8,19 @@ use crate::{
 
 use super::models::{db_bom::DbBOM, db_component::DbComponent};
 
+pub fn find_components(conn: &mut PgConnection) -> Result<Vec<DbComponent>, diesel::result::Error> {
+    components::table.load::<DbComponent>(conn)
+}
+
+pub fn find_component_by_id(
+    conn: &mut PgConnection,
+    component_id: Uuid,
+) -> Result<DbComponent, diesel::result::Error> {
+    components::table
+        .find(component_id)
+        .first::<DbComponent>(conn)
+}
+
 pub fn load_bom_with_components(
     conn: &mut PgConnection,
     bom_id: Uuid,

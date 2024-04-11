@@ -368,6 +368,7 @@ dependencies = [
  "diesel",
  "diesel_cli",
  "dotenv",
+ "rand",
  "reqwest",
  "secrecy",
  "serde",
