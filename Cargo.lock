@@ -365,6 +365,7 @@ dependencies = [
  "actix-web",
  "chrono",
  "config",
+ "derive_more",
  "diesel",
  "diesel_cli",
  "dotenv",

@@ -1,12 +1,21 @@
 use std::net::TcpListener;
 
-use actix_web::{dev::Server, App, HttpServer};
+use actix_web::{dev::Server, web::Data, App, HttpServer};
 
-use crate::{db::DbPool, routes::health_check};
+use crate::{
+    db::DbPool,
+    routes::{get_component_by_id, get_components, health_check},
+};
 
 pub fn run(listener: TcpListener, pool: DbPool) -> Result<Server, std::io::Error> {
-    let server = HttpServer::new(move || App::new().app_data(pool.clone()).service(health_check))
-        .listen(listener)?
-        .run();
+    let server = HttpServer::new(move || {
+        App::new()
+            .app_data(Data::new(pool.clone()))
+            .service(health_check)
+            .service(get_components)
+            .service(get_component_by_id)
+    })
+    .listen(listener)?
+    .run();
     Ok(server)
 }

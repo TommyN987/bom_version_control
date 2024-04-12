@@ -1,12 +1,13 @@
+use serde::Serialize;
 use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Price {
     pub value: i32,
     pub currency: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Component {
     pub id: Uuid,
     pub name: String,

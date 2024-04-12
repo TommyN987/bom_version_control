@@ -20,6 +20,7 @@ async fn main() -> Result<(), std::io::Error> {
     }
 
     let addr = format!("{}:{}", config.app.host, config.app.port);
+    println!("Server is running on: http://{}", addr);
     let listener = TcpListener::bind(addr).expect("Failed to bind to port");
     run(listener, pool)?.await?;
     Ok(())
