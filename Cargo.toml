@@ -32,4 +32,5 @@ uuid = { version = "1.8.0", features = ["serde", "v4"] }
 
 [dev-dependencies]
 diesel_cli = { version = "2.1.1", features = ["postgres"] }
-reqwest = "0.12.2"
+diesel_migrations = { version = "2.1.0", features = ["postgres"] }
+reqwest = { version = "0.12.2", features = ["json"] }

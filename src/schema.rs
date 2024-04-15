@@ -32,8 +32,4 @@ diesel::table! {
 diesel::joinable!(boms_components -> boms (bom_id));
 diesel::joinable!(boms_components -> components (component_id));
 
-diesel::allow_tables_to_appear_in_same_query!(
-    boms,
-    boms_components,
-    components,
-);
+diesel::allow_tables_to_appear_in_same_query!(boms, boms_components, components,);
