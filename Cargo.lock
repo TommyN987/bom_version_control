@@ -368,6 +368,7 @@ dependencies = [
  "derive_more",
  "diesel",
  "diesel_cli",
+ "diesel_migrations",
  "dotenv",
  "rand",
  "reqwest",
