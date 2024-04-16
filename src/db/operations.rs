@@ -21,6 +21,15 @@ pub fn find_component_by_id(
         .first::<DbComponent>(conn)
 }
 
+pub fn insert_component(
+    conn: &mut PgConnection,
+    new_component: DbComponent,
+) -> Result<DbComponent, diesel::result::Error> {
+    diesel::insert_into(components::table)
+        .values(&new_component)
+        .get_result(conn)
+}
+
 pub fn load_bom_with_components(
     conn: &mut PgConnection,
     bom_id: Uuid,
