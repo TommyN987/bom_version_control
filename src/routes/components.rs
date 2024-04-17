@@ -1,3 +1,5 @@
+use std::fmt::{self, Display, Formatter};
+
 use actix_web::{get, post, web, HttpResponse};
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
@@ -42,6 +44,16 @@ impl NewComponent {
     }
 }
 
+impl Display for NewComponent {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(
+            f,
+            "NewComponent {{ name: {}, part_number: {}, description: {:?}, supplier: {}, price: {} {} }}",
+            self.name, self.part_number, self.description, self.supplier, self.price.value, self.price.currency
+        )
+    }
+}
+
 impl TryFrom<NewComponent> for DbComponent {
     type Error = ApiError;
 
@@ -58,6 +70,7 @@ impl TryFrom<NewComponent> for DbComponent {
     }
 }
 
+#[tracing::instrument(name = "Getting all components", skip(pool), fields(request_id = %Uuid::new_v4()))]
 #[get("/components")]
 pub async fn get_components(pool: web::Data<DbPool>) -> Result<HttpResponse, ApiError> {
     let mut conn = pool.get().map_err(|e| anyhow!(e))?;
@@ -69,6 +82,7 @@ pub async fn get_components(pool: web::Data<DbPool>) -> Result<HttpResponse, Api
     Ok(HttpResponse::Ok().json(components))
 }
 
+#[tracing::instrument(name = "Getting a component by id", skip(pool), fields(request_id = %Uuid::new_v4(), id = %id))]
 #[get("/components/{id}")]
 pub async fn get_component_by_id(
     pool: web::Data<DbPool>,
@@ -82,6 +96,7 @@ pub async fn get_component_by_id(
     Ok(HttpResponse::Ok().json(component))
 }
 
+#[tracing::instrument(name = "Creating a component", skip(pool), fields(request_id = %Uuid::new_v4(), name = %component.name, part_number = %component.part_number, supplier = %component.supplier, price = %component.price.value, currency = %component.price.currency))]
 #[post("/components")]
 pub async fn create_component(
     pool: web::Data<DbPool>,

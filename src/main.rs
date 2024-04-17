@@ -5,6 +5,7 @@ use bom_version_control::{
     db::{create_db_pool, models::db_component::DbComponent, DbPool},
     schema::components,
     startup::run,
+    telemetry::{get_subscriber, init_subscriber},
 };
 use diesel::{insert_into, QueryDsl, RunQueryDsl};
 use secrecy::ExposeSecret;
@@ -12,6 +13,9 @@ use uuid::Uuid;
 
 #[actix_web::main]
 async fn main() -> Result<(), std::io::Error> {
+    let subscriber = get_subscriber("bom_version_control".into(), "info".into(), std::io::stdout);
+    init_subscriber(subscriber);
+
     let config = get_config().expect("Failed to read configuration");
     let pool = create_db_pool(config.db.conn_string().expose_secret());
 
