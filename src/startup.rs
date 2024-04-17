@@ -1,6 +1,7 @@
 use std::net::TcpListener;
 
 use actix_web::{dev::Server, web::Data, App, HttpServer};
+use tracing_actix_web::TracingLogger;
 
 use crate::{
     db::DbPool,
@@ -10,11 +11,12 @@ use crate::{
 pub fn run(listener: TcpListener, pool: DbPool) -> Result<Server, std::io::Error> {
     let server = HttpServer::new(move || {
         App::new()
-            .app_data(Data::new(pool.clone()))
+            .wrap(TracingLogger::default())
             .service(health_check)
             .service(get_components)
             .service(get_component_by_id)
             .service(create_component)
+            .app_data(Data::new(pool.clone()))
     })
     .listen(listener)?
     .run();
