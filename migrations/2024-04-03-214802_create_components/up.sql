@@ -8,6 +8,6 @@ CREATE TABLE components (
     part_number VARCHAR NOT NULL,
     description TEXT,
     supplier VARCHAR NOT NULL,
-    price_value INTEGER NOT NULL,
+    price_value REAL NOT NULL,
     price_currency VARCHAR NOT NULL
 );

@@ -40,7 +40,7 @@ fn populate_components_table(pool: &DbPool) -> Result<(), diesel::result::Error>
                 part_number: format!("PRT-{}", i),
                 description: Some(format!("Description of component {}", i)),
                 supplier: format!("Supplier {}", i),
-                price_value: (rand::random::<f64>() * 100.0).floor() as i32,
+                price_value: (rand::random::<f32>() * 100.0).floor(),
                 price_currency: "USD".to_string(),
             })
             .collect();

@@ -15,7 +15,7 @@ pub struct DbComponent {
     pub part_number: String,
     pub description: Option<String>,
     pub supplier: String,
-    pub price_value: i32,
+    pub price_value: f32,
     pub price_currency: String,
 }
 

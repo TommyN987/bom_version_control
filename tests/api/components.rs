@@ -41,7 +41,7 @@ async fn create_component_returns_created() {
             Some("TestDescription".to_string()),
             "TestSupplier".to_string(),
             Price {
-                value: 100,
+                value: 100.0,
                 currency: "EUR".to_string(),
             },
         ))
@@ -85,7 +85,7 @@ async fn create_component_persists_component() {
             Some("TestDescription".to_string()),
             "TestSupplier".to_string(),
             Price {
-                value: 100,
+                value: 100.0,
                 currency: "EUR".to_string(),
             },
         ))
