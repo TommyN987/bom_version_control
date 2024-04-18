@@ -7,6 +7,7 @@ use crate::domain::Component;
 pub struct BOM {
     pub id: Uuid,
     pub name: String,
+    pub version: i32,
     pub description: Option<String>,
     pub components: Vec<(Component, i32)>,
     pub created_at: DateTime<Utc>,
@@ -21,6 +22,7 @@ impl BOM {
         Self {
             id: Uuid::new_v4(),
             name,
+            version: 1,
             description,
             components,
             created_at: Utc::now(),
