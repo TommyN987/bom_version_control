@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use diesel::{
     prelude::{Insertable, Queryable},
@@ -6,7 +9,10 @@ use diesel::{
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{domain::BOM, schema::boms};
+use crate::{
+    domain::{Component, BOM},
+    schema::boms,
+};
 
 use super::db_component::DbComponent;
 
@@ -30,5 +36,32 @@ impl From<(DbBOM, Vec<DbComponent>, Vec<i32>)> for BOM {
             components: value.1.into_iter().map(|c| c.into()).zip(value.2).collect(),
             created_at: value.0.created_at,
         }
+    }
+}
+
+impl TryFrom<(DbBOM, HashMap<Uuid, (Option<Component>, i32)>)> for BOM {
+    type Error = anyhow::Error;
+
+    fn try_from(
+        value: (DbBOM, HashMap<Uuid, (Option<Component>, i32)>),
+    ) -> Result<Self, Self::Error> {
+        let (db_bom, comp_map) = value;
+
+        let components = comp_map
+            .into_iter()
+            .map(|(_, (comp, qty))| {
+                comp.ok_or_else(|| anyhow!("Component not found"))
+                    .map(|c| (c, qty))
+            })
+            .collect::<Result<Vec<(Component, i32)>, _>>()?;
+
+        Ok(Self {
+            id: db_bom.id,
+            name: db_bom.name,
+            description: db_bom.description,
+            version: db_bom.version,
+            components,
+            created_at: db_bom.created_at,
+        })
     }
 }

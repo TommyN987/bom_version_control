@@ -1,12 +1,14 @@
+use std::collections::HashMap;
+
 use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::{
-    domain::BOM,
+    domain::{Component, BOM},
     schema::{boms, boms_components, components},
 };
 
-use super::models::{db_bom::DbBOM, db_component::DbComponent};
+use super::models::{db_bom::DbBOM, db_boms_component::DbBOMComponent, db_component::DbComponent};
 
 pub fn find_components(conn: &mut PgConnection) -> Result<Vec<DbComponent>, diesel::result::Error> {
     components::table.load::<DbComponent>(conn)
@@ -30,10 +32,51 @@ pub fn insert_component(
         .get_result(conn)
 }
 
+pub fn insert_bom(
+    conn: &mut PgConnection,
+    new_bom: DbBOM,
+    components: Vec<(Uuid, i32)>,
+) -> Result<BOM, anyhow::Error> {
+    conn.build_transaction().run(|conn| {
+        let new_db_bom: DbBOM = diesel::insert_into(boms::table)
+            .values(&new_bom)
+            .get_result(conn)?;
+
+        let mut comp_map: HashMap<Uuid, (Option<Component>, i32)> = HashMap::new();
+
+        components.iter().for_each(|(id, quantity)| {
+            comp_map.insert(*id, (None, *quantity));
+        });
+
+        let bom_components: Vec<DbBOMComponent> = components
+            .iter()
+            .map(|(component_id, quantity)| {
+                DbBOMComponent::new(new_db_bom.id, *component_id, *quantity)
+            })
+            .collect();
+
+        diesel::insert_into(boms_components::table)
+            .values(&bom_components)
+            .execute(conn)?;
+
+        let comps: Vec<DbComponent> = components::table
+            .filter(components::id.eq_any(components.iter().map(|(id, _)| *id)))
+            .load(conn)?;
+
+        comps.into_iter().for_each(|c| {
+            comp_map
+                .entry(c.id)
+                .and_modify(|(comp, _)| *comp = Some(c.into()));
+        });
+
+        Ok(BOM::try_from((new_db_bom, comp_map))?)
+    })
+}
+
 pub fn load_bom_with_components(
     conn: &mut PgConnection,
     bom_id: Uuid,
-) -> Result<BOM, diesel::result::Error> {
+) -> Result<BOM, anyhow::Error> {
     let db_bom: DbBOM = boms::table.find(bom_id).first::<DbBOM>(conn)?;
 
     let components: Vec<DbComponent> = boms_components::table
