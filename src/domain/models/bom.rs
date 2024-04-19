@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::domain::Component;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct BOM {
     pub id: Uuid,
     pub name: String,
