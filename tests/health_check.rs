@@ -1,3 +1,5 @@
+mod helpers;
+
 use crate::helpers::spawn_app;
 use reqwest::Client;
 
