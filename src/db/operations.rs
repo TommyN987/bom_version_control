@@ -1,10 +1,8 @@
-use std::collections::HashMap;
-
 use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::{
-    domain::{Component, BOM},
+    domain::BOM,
     schema::{boms, boms_components, components},
 };
 
@@ -32,44 +30,36 @@ pub fn insert_component(
         .get_result(conn)
 }
 
+pub fn find_boms(conn: &mut PgConnection) -> Result<Vec<DbBOM>, diesel::result::Error> {
+    boms::table.load::<DbBOM>(conn)
+}
+
+pub fn find_bom_by_id(
+    conn: &mut PgConnection,
+    bom_id: Uuid,
+) -> Result<DbBOM, diesel::result::Error> {
+    boms::table.find(bom_id).first::<DbBOM>(conn)
+}
+
 pub fn insert_bom(
     conn: &mut PgConnection,
     new_bom: DbBOM,
-    components: Vec<(Uuid, i32)>,
-) -> Result<BOM, anyhow::Error> {
+    boms_components: Vec<DbBOMComponent>,
+) -> Result<(DbBOM, Vec<DbComponent>), anyhow::Error> {
     conn.build_transaction().run(|conn| {
         let new_db_bom: DbBOM = diesel::insert_into(boms::table)
             .values(&new_bom)
             .get_result(conn)?;
 
-        let mut comp_map: HashMap<Uuid, (Option<Component>, i32)> = HashMap::new();
-
-        components.iter().for_each(|(id, quantity)| {
-            comp_map.insert(*id, (None, *quantity));
-        });
-
-        let bom_components: Vec<DbBOMComponent> = components
-            .iter()
-            .map(|(component_id, quantity)| {
-                DbBOMComponent::new(new_db_bom.id, *component_id, *quantity)
-            })
-            .collect();
-
         diesel::insert_into(boms_components::table)
-            .values(&bom_components)
+            .values(&boms_components)
             .execute(conn)?;
 
         let comps: Vec<DbComponent> = components::table
-            .filter(components::id.eq_any(components.iter().map(|(id, _)| *id)))
+            .filter(components::id.eq_any(boms_components.iter().map(|b_c| b_c.component_id)))
             .load(conn)?;
 
-        comps.into_iter().for_each(|c| {
-            comp_map
-                .entry(c.id)
-                .and_modify(|(comp, _)| *comp = Some(c.into()));
-        });
-
-        Ok(BOM::try_from((new_db_bom, comp_map))?)
+        Ok((new_db_bom, comps))
     })
 }
 

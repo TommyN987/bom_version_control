@@ -8,8 +8,8 @@ use bom_version_control::{
 };
 use diesel::{
     pg::Pg,
-    r2d2::{self, ConnectionManager, CustomizeConnection},
-    Connection, PgConnection,
+    r2d2::{self, ConnectionManager},
+    PgConnection,
 };
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use dotenv::dotenv;
@@ -35,16 +35,6 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 pub struct TestApp {
     pub addr: String,
     pub pool: DbPool,
-}
-
-#[derive(Debug)]
-pub struct AlwaysTestingTransaction {}
-
-impl<C: Connection, E> CustomizeConnection<C, E> for AlwaysTestingTransaction {
-    fn on_acquire(&self, conn: &mut C) -> Result<(), E> {
-        conn.begin_test_transaction().unwrap();
-        Ok(())
-    }
 }
 
 pub async fn spawn_app() -> TestApp {
@@ -83,11 +73,9 @@ fn run_migrations(
 
 fn create_testing_pool(connection_string: &str) -> DbPool {
     dotenv().ok();
-    let always_testing = AlwaysTestingTransaction {};
     let manager = ConnectionManager::<PgConnection>::new(connection_string);
     r2d2::Builder::new()
         .max_size(1)
-        .connection_customizer(Box::new(always_testing))
         .build(manager)
         .expect("Failed to create pool.")
 }
