@@ -10,6 +10,8 @@ jobs:
     test:
         name: Test
         runs-on: ubuntu-latest
+        env:
+            RUST_TEST_THREADS: 1
         services:
             postgres:
                 image: postgres:14
