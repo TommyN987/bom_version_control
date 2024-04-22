@@ -21,6 +21,15 @@ pub fn find_component_by_id(
         .first::<DbComponent>(conn)
 }
 
+pub fn find_multiple_components(
+    conn: &mut PgConnection,
+    component_ids: Vec<Uuid>,
+) -> Result<Vec<DbComponent>, diesel::result::Error> {
+    components::table
+        .filter(components::id.eq_any(component_ids))
+        .load::<DbComponent>(conn)
+}
+
 pub fn insert_component(
     conn: &mut PgConnection,
     new_component: DbComponent,
@@ -45,7 +54,7 @@ pub fn insert_bom(
     conn: &mut PgConnection,
     new_bom: DbBOM,
     boms_components: Vec<DbBOMComponent>,
-) -> Result<(DbBOM, Vec<DbComponent>), anyhow::Error> {
+) -> Result<DbBOM, anyhow::Error> {
     conn.build_transaction().run(|conn| {
         let new_db_bom: DbBOM = diesel::insert_into(boms::table)
             .values(&new_bom)
@@ -55,11 +64,7 @@ pub fn insert_bom(
             .values(&boms_components)
             .execute(conn)?;
 
-        let comps: Vec<DbComponent> = components::table
-            .filter(components::id.eq_any(boms_components.iter().map(|b_c| b_c.component_id)))
-            .load(conn)?;
-
-        Ok((new_db_bom, comps))
+        Ok(new_db_bom)
     })
 }
 
@@ -81,4 +86,20 @@ pub fn load_bom_with_components(
         .load::<i32>(conn)?;
 
     Ok(BOM::from((db_bom, components, quantities)))
+}
+
+pub fn get_components_of_bom_by_id(
+    conn: &mut PgConnection,
+    bom_id: Uuid,
+) -> Result<(Vec<DbBOMComponent>, Vec<DbComponent>), anyhow::Error> {
+    let bom_components: Vec<DbBOMComponent> = boms_components::table
+        .filter(boms_components::bom_id.eq(bom_id))
+        .load::<DbBOMComponent>(conn)?;
+
+    let components: Vec<DbComponent> = boms_components::table
+        .inner_join(components::table.on(boms_components::component_id.eq(components::id)))
+        .filter(boms_components::bom_id.eq(bom_id))
+        .select(components::all_columns)
+        .load(conn)?;
+    Ok((bom_components, components))
 }
