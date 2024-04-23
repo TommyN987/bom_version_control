@@ -1,9 +1,10 @@
 use std::{
     collections::HashMap,
     fmt::{self, Display, Formatter},
+    sync::Arc,
 };
 
-use actix_web::{get, post, web, HttpResponse};
+use actix_web::{get, post, put, web, HttpResponse};
 use anyhow::anyhow;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -14,10 +15,11 @@ use crate::{
         models::{db_bom::DbBOM, db_boms_component::DbBOMComponent, db_component::DbComponent},
         operations::{
             find_bom_by_id, find_multiple_components, get_components_of_bom_by_id, insert_bom,
+            update_and_archive_bom_by_id,
         },
         DbPool,
     },
-    domain::{Component, BOM},
+    domain::{BOMChangeEvent, Component, BOM},
 };
 
 use super::ApiError;
@@ -71,24 +73,28 @@ impl TryFrom<&NewBOM> for DbBOM {
     }
 }
 
+async fn retrieve_bom(pool: Arc<DbPool>, id: Uuid) -> Result<BOM, ApiError> {
+    let mut conn = pool.get().map_err(|e| anyhow!(e))?;
+    let (db_bom, db_bom_components, db_components) = actix_web::web::block(
+        move || -> Result<(DbBOM, Vec<DbBOMComponent>, Vec<DbComponent>), ApiError> {
+            let db_bom: DbBOM = find_bom_by_id(&mut conn, id)?;
+            let (db_bom_components, db_components) = get_components_of_bom_by_id(&mut conn, id)?;
+            Ok((db_bom, db_bom_components, db_components))
+        },
+    )
+    .await??;
+
+    Ok(BOM::try_from((db_bom, db_bom_components, db_components))?)
+}
+
 #[tracing::instrument(name = "Getting BOM by ID", skip(pool, id), fields(request_id = %Uuid::new_v4()))]
 #[get("/boms/{id}")]
 pub async fn get_bom_by_id(
     pool: web::Data<DbPool>,
     id: web::Path<Uuid>,
 ) -> Result<HttpResponse, ApiError> {
-    let mut conn = pool.get().map_err(|e| anyhow!(e))?;
-
-    let (db_bom, db_bom_components, db_components) = actix_web::web::block(
-        move || -> Result<(DbBOM, Vec<DbBOMComponent>, Vec<DbComponent>), ApiError> {
-            let db_bom: DbBOM = find_bom_by_id(&mut conn, *id)?;
-            let (db_bom_components, db_components) = get_components_of_bom_by_id(&mut conn, *id)?;
-            Ok((db_bom, db_bom_components, db_components))
-        },
-    )
-    .await??;
-
-    Ok(HttpResponse::Ok().json(BOM::try_from((db_bom, db_bom_components, db_components))?))
+    let bom: BOM = retrieve_bom(pool.into_inner(), id.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(bom))
 }
 
 #[tracing::instrument(name = "Creating BOM", skip(pool), fields(request_id = %Uuid::new_v4(), new_bom = %new_bom))]
@@ -135,4 +141,29 @@ pub async fn create_bom(
     });
 
     Ok(HttpResponse::Created().json(BOM::try_from((db_bom, comp_map))?))
+}
+
+#[put("/boms/{id}")]
+pub async fn update_bom(
+    pool: web::Data<DbPool>,
+    id: web::Path<Uuid>,
+    change_events: web::Json<Vec<BOMChangeEvent>>,
+) -> Result<HttpResponse, ApiError> {
+    let change_events = change_events.into_inner();
+    let bom_id = id.into_inner();
+
+    let mut conn = pool.get().map_err(|e| anyhow!(e))?;
+
+    let (updated_bom, updated_bom_components, updated_components) = actix_web::web::block(
+        move || -> Result<(DbBOM, Vec<DbBOMComponent>, Vec<DbComponent>), anyhow::Error> {
+            update_and_archive_bom_by_id(&mut conn, bom_id, change_events)
+        },
+    )
+    .await??;
+
+    Ok(HttpResponse::Ok().json(BOM::try_from((
+        updated_bom,
+        updated_bom_components,
+        updated_components,
+    ))?))
 }

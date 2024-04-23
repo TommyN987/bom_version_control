@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use diesel::{
+    associations::Identifiable,
     prelude::{Insertable, Queryable},
+    query_builder::AsChangeset,
     Selectable,
 };
 use serde::Deserialize;
@@ -16,7 +18,9 @@ use crate::{
 
 use super::{db_boms_component::DbBOMComponent, db_component::DbComponent};
 
-#[derive(Debug, PartialEq, Deserialize, Insertable, Queryable, Selectable)]
+#[derive(
+    Debug, PartialEq, Deserialize, Identifiable, Insertable, Queryable, Selectable, AsChangeset,
+)]
 #[diesel(table_name = boms)]
 pub struct DbBOM {
     pub id: Uuid,
@@ -24,6 +28,18 @@ pub struct DbBOM {
     pub description: Option<String>,
     pub version: i32,
     pub created_at: DateTime<Utc>,
+}
+
+impl From<&BOM> for DbBOM {
+    fn from(value: &BOM) -> Self {
+        Self {
+            id: value.id,
+            name: value.name.clone(),
+            description: value.description.clone(),
+            version: value.version,
+            created_at: value.created_at,
+        }
+    }
 }
 
 impl From<(DbBOM, Vec<DbComponent>, Vec<i32>)> for BOM {
