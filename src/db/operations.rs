@@ -1,12 +1,17 @@
+use anyhow::anyhow;
+use bom::BOM;
 use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::{
-    domain::BOM,
-    schema::{boms, boms_components, components},
+    domain::{bom, BOMChangeEvent},
+    schema::{bom_versions, boms, boms_components, components},
 };
 
-use super::models::{db_bom::DbBOM, db_boms_component::DbBOMComponent, db_component::DbComponent};
+use super::models::{
+    db_bom::DbBOM, db_bom_version::BOMVersion, db_boms_component::DbBOMComponent,
+    db_component::DbComponent,
+};
 
 pub fn find_components(conn: &mut PgConnection) -> Result<Vec<DbComponent>, diesel::result::Error> {
     components::table.load::<DbComponent>(conn)
@@ -68,26 +73,6 @@ pub fn insert_bom(
     })
 }
 
-pub fn load_bom_with_components(
-    conn: &mut PgConnection,
-    bom_id: Uuid,
-) -> Result<BOM, anyhow::Error> {
-    let db_bom: DbBOM = boms::table.find(bom_id).first::<DbBOM>(conn)?;
-
-    let components: Vec<DbComponent> = boms_components::table
-        .inner_join(components::table.on(boms_components::component_id.eq(components::id)))
-        .filter(boms_components::bom_id.eq(bom_id))
-        .select(components::all_columns)
-        .load(conn)?;
-
-    let quantities: Vec<i32> = boms_components::table
-        .filter(boms_components::bom_id.eq(bom_id))
-        .select(boms_components::quantity)
-        .load::<i32>(conn)?;
-
-    Ok(BOM::from((db_bom, components, quantities)))
-}
-
 pub fn get_components_of_bom_by_id(
     conn: &mut PgConnection,
     bom_id: Uuid,
@@ -102,4 +87,50 @@ pub fn get_components_of_bom_by_id(
         .select(components::all_columns)
         .load(conn)?;
     Ok((bom_components, components))
+}
+
+pub fn update_and_archive_bom_by_id(
+    conn: &mut PgConnection,
+    bom_id: Uuid,
+    change_events: Vec<BOMChangeEvent>,
+) -> Result<(DbBOM, Vec<DbBOMComponent>, Vec<DbComponent>), anyhow::Error> {
+    let db_bom: DbBOM = boms::table.find(bom_id).first(conn)?;
+
+    let (bom_components, components) = get_components_of_bom_by_id(conn, bom_id)?;
+
+    let db_bom_version: BOMVersion = (&db_bom, &change_events).into();
+    let mut bom: BOM = (db_bom, bom_components, components).try_into()?;
+    bom.increment_version();
+
+    change_events
+        .into_iter()
+        .for_each(|event| bom.apply_change(event));
+
+    let (new_db_bom, new_db_bom_components) = bom.into();
+
+    let (updated_bom, updated_bom_components): (DbBOM, Vec<DbBOMComponent>) =
+        conn.build_transaction().run(|conn| {
+            let updated_bom: DbBOM = diesel::update(boms::table.find(bom_id))
+                .set(new_db_bom)
+                .get_result(conn)?;
+
+            diesel::delete(boms_components::table.filter(boms_components::bom_id.eq(bom_id)))
+                .execute(conn)?;
+
+            let updated_bom_components: Vec<DbBOMComponent> =
+                diesel::insert_into(boms_components::table)
+                    .values(&new_db_bom_components)
+                    .get_results(conn)?;
+
+            let _ = diesel::insert_into(bom_versions::table)
+                .values(db_bom_version)
+                .execute(conn)
+                .map_err(|e| anyhow!(e))?;
+
+            Ok::<(DbBOM, Vec<DbBOMComponent>), anyhow::Error>((updated_bom, updated_bom_components))
+        })?;
+
+    let (_, components) = get_components_of_bom_by_id(conn, updated_bom.id)?;
+
+    Ok((updated_bom, updated_bom_components, components))
 }

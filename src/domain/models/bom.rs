@@ -30,27 +30,19 @@ impl BOM {
         }
     }
 
-    pub fn add_component(&self, component: Component, qty: i32) -> BOMChangeEvent {
-        BOMChangeEvent::ComponentAdded(component, qty)
-    }
-
-    pub fn remove_component(&self, component: Component) -> BOMChangeEvent {
-        BOMChangeEvent::ComponentRemoved(component)
-    }
-
-    pub fn update_component(&self, component_id: Uuid, qty: i32) -> BOMChangeEvent {
-        BOMChangeEvent::ComponentUpdated(component_id, qty)
-    }
-
-    pub fn apply_change(mut self, event: BOMChangeEvent) -> Self {
+    pub fn apply_change(&mut self, event: BOMChangeEvent) {
         match event {
+            BOMChangeEvent::NameChanged(name) => {
+                self.name = name;
+            }
+            BOMChangeEvent::DescriptionChanged(description) => {
+                self.description = Some(description);
+            }
             BOMChangeEvent::ComponentAdded(component, qty) => {
                 self.components.push((component, qty));
-                self
             }
             BOMChangeEvent::ComponentRemoved(component) => {
                 self.components.retain(|(c, _)| c.id != component.id);
-                self
             }
             BOMChangeEvent::ComponentUpdated(id, qty) => {
                 self.components.iter_mut().for_each(|(c, q)| {
@@ -58,13 +50,20 @@ impl BOM {
                         *q = qty;
                     }
                 });
-                self
             }
         }
     }
+
+    pub fn increment_version(&mut self) {
+        self.version += 1;
+    }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "type", content = "data")]
 pub enum BOMChangeEvent {
+    NameChanged(String),
+    DescriptionChanged(String),
     ComponentAdded(Component, i32),
     ComponentRemoved(Component),
     ComponentUpdated(Uuid, i32),

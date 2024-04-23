@@ -1,4 +1,8 @@
-use diesel::prelude::{Insertable, Queryable};
+use diesel::{
+    associations::Identifiable,
+    prelude::{Insertable, Queryable},
+    Selectable,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -7,7 +11,9 @@ use crate::{
     schema::components,
 };
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Insertable, Queryable)]
+#[derive(
+    Debug, PartialEq, Serialize, Deserialize, Identifiable, Selectable, Insertable, Queryable,
+)]
 #[diesel(table_name = components)]
 pub struct DbComponent {
     pub id: Uuid,

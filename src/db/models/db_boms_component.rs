@@ -7,7 +7,7 @@ use diesel::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::schema::boms_components;
+use crate::{domain::BOM, schema::boms_components};
 
 use super::{db_bom::DbBOM as Bom, db_component::DbComponent as Component};
 
@@ -39,5 +39,18 @@ impl DbBOMComponent {
             component_id,
             quantity,
         }
+    }
+}
+
+impl Into<(Bom, Vec<DbBOMComponent>)> for BOM {
+    fn into(self) -> (Bom, Vec<DbBOMComponent>) {
+        let db_bom: Bom = Bom::from(&self);
+        let db_bom_components: Vec<DbBOMComponent> = self
+            .components
+            .into_iter()
+            .map(|(c, q)| DbBOMComponent::new(db_bom.id, c.id, q))
+            .collect();
+
+        (db_bom, db_bom_components)
     }
 }
