@@ -13,6 +13,7 @@ use super::{db_bom::DbBOM as Bom, db_component::DbComponent as Component};
 
 #[derive(
     Debug,
+    Clone,
     PartialEq,
     Serialize,
     Deserialize,
@@ -42,6 +43,7 @@ impl DbBOMComponent {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<(Bom, Vec<DbBOMComponent>)> for BOM {
     fn into(self) -> (Bom, Vec<DbBOMComponent>) {
         let db_bom: Bom = Bom::from(&self);

@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     fmt::{self, Display, Formatter},
     sync::Arc,
 };
@@ -19,7 +18,7 @@ use crate::{
         },
         DbPool,
     },
-    domain::{BOMChangeEvent, Component, BOM},
+    domain::{BOMChangeEvent, BOM},
 };
 
 use super::ApiError;
@@ -107,42 +106,37 @@ pub async fn create_bom(
 
     let new_bom = new_bom.into_inner();
     let new_db_bom: DbBOM = DbBOM::try_from(&new_bom)?;
+    let new_db_bom_id = &new_db_bom.id.clone();
 
-    let mut comp_map: HashMap<Uuid, (Option<Component>, i32)> = HashMap::new();
+    let db_bom_comp_vec: Vec<DbBOMComponent> = new_bom
+        .components
+        .iter()
+        .map(|(comp_id, qty)| DbBOMComponent::new(*new_db_bom_id, *comp_id, *qty))
+        .collect();
 
-    let mut db_bom_comp_vec: Vec<DbBOMComponent> = Vec::new();
+    println!("New BOMComponents: {:?}", db_bom_comp_vec);
 
-    new_bom.components.iter().for_each(|(id, quantity)| {
-        comp_map.insert(*id, (None, *quantity));
-        db_bom_comp_vec.push(DbBOMComponent::new(new_db_bom.id, *id, *quantity));
-    });
+    let (db_bom, db_bom_components, db_components) = actix_web::web::block(
+        move || -> Result<(DbBOM, Vec<DbBOMComponent>, Vec<DbComponent>), ApiError> {
+            let (db_bom, db_bom_components) =
+                insert_bom(&mut conn, new_db_bom, db_bom_comp_vec.to_vec())?;
+            let db_components = find_multiple_components(
+                &mut conn,
+                new_bom
+                    .components
+                    .iter()
+                    .map(|(id, _)| *id)
+                    .collect::<Vec<Uuid>>(),
+            )?;
+            Ok((db_bom, db_bom_components, db_components))
+        },
+    )
+    .await??;
 
-    let (db_bom, db_components) = actix_web::web::block(move || {
-        let db_bom = insert_bom(&mut conn, new_db_bom, db_bom_comp_vec);
-        let db_components = find_multiple_components(
-            &mut conn,
-            new_bom
-                .components
-                .iter()
-                .map(|(id, _)| *id)
-                .collect::<Vec<Uuid>>(),
-        );
-        (db_bom, db_components)
-    })
-    .await?;
-
-    let db_components = db_components?;
-    let db_bom = db_bom?;
-
-    db_components.into_iter().for_each(|c| {
-        comp_map
-            .entry(c.id)
-            .and_modify(|(comp, _)| *comp = Some(c.into()));
-    });
-
-    Ok(HttpResponse::Created().json(BOM::try_from((db_bom, comp_map))?))
+    Ok(HttpResponse::Created().json(BOM::try_from((db_bom, db_bom_components, db_components))?))
 }
 
+#[tracing::instrument(name = "Updating BOM", skip(pool), fields(request_id = %Uuid::new_v4(), id = %id))]
 #[put("/boms/{id}")]
 pub async fn update_bom(
     pool: web::Data<DbPool>,
@@ -161,7 +155,7 @@ pub async fn update_bom(
     )
     .await??;
 
-    Ok(HttpResponse::Ok().json(BOM::try_from((
+    Ok(HttpResponse::Created().json(BOM::try_from((
         updated_bom,
         updated_bom_components,
         updated_components,

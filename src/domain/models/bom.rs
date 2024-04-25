@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -67,4 +69,24 @@ pub enum BOMChangeEvent {
     ComponentAdded(Component, i32),
     ComponentRemoved(Component),
     ComponentUpdated(Uuid, i32),
+}
+
+impl Display for BOMChangeEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BOMChangeEvent::NameChanged(name) => write!(f, "NameChanged({})", name),
+            BOMChangeEvent::DescriptionChanged(description) => {
+                write!(f, "DescriptionChanged({})", description)
+            }
+            BOMChangeEvent::ComponentAdded(component, qty) => {
+                write!(f, "ComponentAdded({}, {})", component.name, qty)
+            }
+            BOMChangeEvent::ComponentRemoved(component) => {
+                write!(f, "ComponentRemoved({})", component.name)
+            }
+            BOMChangeEvent::ComponentUpdated(id, qty) => {
+                write!(f, "ComponentUpdated({}, {})", id, qty)
+            }
+        }
+    }
 }
