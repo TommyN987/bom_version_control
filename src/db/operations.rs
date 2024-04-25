@@ -59,17 +59,17 @@ pub fn insert_bom(
     conn: &mut PgConnection,
     new_bom: DbBOM,
     boms_components: Vec<DbBOMComponent>,
-) -> Result<DbBOM, anyhow::Error> {
+) -> Result<(DbBOM, Vec<DbBOMComponent>), anyhow::Error> {
     conn.build_transaction().run(|conn| {
         let new_db_bom: DbBOM = diesel::insert_into(boms::table)
             .values(&new_bom)
             .get_result(conn)?;
 
-        diesel::insert_into(boms_components::table)
+        let new_bom_compoonents: Vec<DbBOMComponent> = diesel::insert_into(boms_components::table)
             .values(&boms_components)
-            .execute(conn)?;
+            .get_results(conn)?;
 
-        Ok(new_db_bom)
+        Ok((new_db_bom, new_bom_compoonents))
     })
 }
 

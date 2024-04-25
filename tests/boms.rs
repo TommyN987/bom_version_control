@@ -34,24 +34,6 @@ async fn create_bom_returns_created() {
         .await
         .expect("Failed to parse response");
 
-    // let comp = tokio::task::spawn_blocking(move || {
-    //     insert_component(
-    //         &mut app.pool.get().unwrap(),
-    //         DbComponent {
-    //             id: Uuid::new_v4(),
-    //             name: "TestComponent".to_string(),
-    //             part_number: "12345".to_string(),
-    //             description: Some("TestComponentDescription".to_string()),
-    //             supplier: "TestSupplier".to_string(),
-    //             price_value: 100.0,
-    //             price_currency: "EUR".to_string(),
-    //         },
-    //     )
-    //     .unwrap()
-    // })
-    // .await
-    // .unwrap();
-
     // Act
     let response = client
         .post(&format!("{}/boms", &app.addr))
