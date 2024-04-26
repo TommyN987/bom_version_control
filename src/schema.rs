@@ -17,6 +17,7 @@ diesel::table! {
         description -> Nullable<Text>,
         version -> Int4,
         created_at -> Timestamptz,
+        updated_at -> Timestamptz,
     }
 }
 
@@ -44,4 +45,9 @@ diesel::joinable!(bom_versions -> boms (bom_id));
 diesel::joinable!(boms_components -> boms (bom_id));
 diesel::joinable!(boms_components -> components (component_id));
 
-diesel::allow_tables_to_appear_in_same_query!(bom_versions, boms, boms_components, components,);
+diesel::allow_tables_to_appear_in_same_query!(
+    bom_versions,
+    boms,
+    boms_components,
+    components,
+);

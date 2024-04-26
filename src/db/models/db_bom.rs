@@ -28,6 +28,7 @@ pub struct DbBOM {
     pub description: Option<String>,
     pub version: i32,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl From<&BOM> for DbBOM {
@@ -38,6 +39,7 @@ impl From<&BOM> for DbBOM {
             description: value.description.clone(),
             version: value.version,
             created_at: value.created_at,
+            updated_at: value.updated_at,
         }
     }
 }
@@ -72,6 +74,7 @@ impl TryFrom<(DbBOM, Vec<DbBOMComponent>, Vec<DbComponent>)> for BOM {
                 .map(|(comp, qty)| comp.ok_or(anyhow!("Component not found")).map(|c| (c, qty)))
                 .collect::<Result<Vec<(Component, i32)>, _>>()?,
             created_at: db_bom.created_at,
+            updated_at: db_bom.updated_at,
         })
     }
 }

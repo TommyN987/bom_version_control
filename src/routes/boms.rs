@@ -5,7 +5,6 @@ use std::{
 
 use actix_web::{get, post, put, web, HttpResponse};
 use anyhow::anyhow;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -25,28 +24,12 @@ use super::ApiError;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NewBOM {
-    name: String,
-    description: Option<String>,
-    components: Vec<(Uuid, i32)>,
-}
-
-impl NewBOM {
-    pub fn new(name: String, description: Option<String>, components: Vec<(Uuid, i32)>) -> Self {
-        Self {
-            name,
-            description,
-            components,
-        }
-    }
+    events: Vec<BOMChangeEvent>,
 }
 
 impl Display for NewBOM {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(
-            f,
-            "NewBOM {{ name: {}, description: {:?}, components: {:?} }}",
-            self.name, self.description, self.components
-        )
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.events)
     }
 }
 
@@ -54,20 +37,22 @@ impl TryFrom<&NewBOM> for DbBOM {
     type Error = ApiError;
 
     fn try_from(value: &NewBOM) -> Result<Self, Self::Error> {
-        if value.name.is_empty() {
+        let bom = BOM::from(&value.events);
+        if bom.name.is_empty() {
             return Err(ApiError::BadRequest("Name is required".to_string()));
         }
 
-        if value.components.is_empty() {
+        if bom.components.is_empty() {
             return Err(ApiError::BadRequest("Components are required".to_string()));
         }
 
         Ok(Self {
             id: Uuid::new_v4(),
-            name: value.name.clone(),
-            description: value.description.clone(),
-            version: 1,
-            created_at: Utc::now(),
+            name: bom.name.clone(),
+            description: bom.description.clone(),
+            version: bom.version,
+            created_at: bom.created_at,
+            updated_at: bom.updated_at,
         })
     }
 }
@@ -106,26 +91,32 @@ pub async fn create_bom(
 
     let new_bom = new_bom.into_inner();
     let new_db_bom: DbBOM = DbBOM::try_from(&new_bom)?;
-    let new_db_bom_id = &new_db_bom.id.clone();
 
     let db_bom_comp_vec: Vec<DbBOMComponent> = new_bom
-        .components
+        .events
         .iter()
-        .map(|(comp_id, qty)| DbBOMComponent::new(*new_db_bom_id, *comp_id, *qty))
+        .filter_map(|event| {
+            if let BOMChangeEvent::ComponentAdded(component, qty) = event {
+                Some(DbBOMComponent::new(new_db_bom.id, component.id, *qty))
+            } else {
+                None
+            }
+        })
         .collect();
-
-    println!("New BOMComponents: {:?}", db_bom_comp_vec);
 
     let (db_bom, db_bom_components, db_components) = actix_web::web::block(
         move || -> Result<(DbBOM, Vec<DbBOMComponent>, Vec<DbComponent>), ApiError> {
-            let (db_bom, db_bom_components) =
-                insert_bom(&mut conn, new_db_bom, db_bom_comp_vec.to_vec())?;
+            let (db_bom, db_bom_components) = insert_bom(
+                &mut conn,
+                new_db_bom,
+                db_bom_comp_vec.to_vec(),
+                new_bom.events,
+            )?;
             let db_components = find_multiple_components(
                 &mut conn,
-                new_bom
-                    .components
+                &db_bom_components
                     .iter()
-                    .map(|(id, _)| *id)
+                    .map(|db_bom_comp| db_bom_comp.component_id)
                     .collect::<Vec<Uuid>>(),
             )?;
             Ok((db_bom, db_bom_components, db_components))

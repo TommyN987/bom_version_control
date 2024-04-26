@@ -28,7 +28,7 @@ pub fn find_component_by_id(
 
 pub fn find_multiple_components(
     conn: &mut PgConnection,
-    component_ids: Vec<Uuid>,
+    component_ids: &Vec<Uuid>,
 ) -> Result<Vec<DbComponent>, diesel::result::Error> {
     components::table
         .filter(components::id.eq_any(component_ids))
@@ -59,7 +59,9 @@ pub fn insert_bom(
     conn: &mut PgConnection,
     new_bom: DbBOM,
     boms_components: Vec<DbBOMComponent>,
+    change_events: Vec<BOMChangeEvent>,
 ) -> Result<(DbBOM, Vec<DbBOMComponent>), anyhow::Error> {
+    let bom_version = BOMVersion::from((&new_bom, &change_events));
     conn.build_transaction().run(|conn| {
         let new_db_bom: DbBOM = diesel::insert_into(boms::table)
             .values(&new_bom)
@@ -68,6 +70,10 @@ pub fn insert_bom(
         let new_bom_compoonents: Vec<DbBOMComponent> = diesel::insert_into(boms_components::table)
             .values(&boms_components)
             .get_results(conn)?;
+
+        diesel::insert_into(bom_versions::table)
+            .values(bom_version)
+            .execute(conn)?;
 
         Ok((new_db_bom, new_bom_compoonents))
     })
@@ -103,7 +109,7 @@ pub fn update_and_archive_bom_by_id(
     bom.increment_version();
 
     change_events
-        .into_iter()
+        .iter()
         .for_each(|event| bom.apply_change(event));
 
     let (new_db_bom, new_db_bom_components) = bom.into();

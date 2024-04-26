@@ -14,42 +14,42 @@ pub struct BOM {
     pub description: Option<String>,
     pub components: Vec<(Component, i32)>,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl Default for BOM {
+    fn default() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            name: String::new(),
+            version: 0,
+            description: None,
+            components: Vec::new(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
 }
 
 impl BOM {
-    pub fn new(
-        name: String,
-        description: Option<String>,
-        components: Vec<(Component, i32)>,
-    ) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            name,
-            version: 1,
-            description,
-            components,
-            created_at: Utc::now(),
-        }
-    }
-
-    pub fn apply_change(&mut self, event: BOMChangeEvent) {
+    pub fn apply_change(&mut self, event: &BOMChangeEvent) {
         match event {
             BOMChangeEvent::NameChanged(name) => {
-                self.name = name;
+                self.name = name.clone();
             }
             BOMChangeEvent::DescriptionChanged(description) => {
-                self.description = Some(description);
+                self.description = Some(description.clone());
             }
             BOMChangeEvent::ComponentAdded(component, qty) => {
-                self.components.push((component, qty));
+                self.components.push((component.clone(), *qty));
             }
             BOMChangeEvent::ComponentRemoved(component) => {
                 self.components.retain(|(c, _)| c.id != component.id);
             }
             BOMChangeEvent::ComponentUpdated(id, qty) => {
                 self.components.iter_mut().for_each(|(c, q)| {
-                    if c.id == id {
-                        *q = qty;
+                    if c.id == *id {
+                        *q = *qty;
                     }
                 });
             }
@@ -61,7 +61,17 @@ impl BOM {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+impl From<&Vec<BOMChangeEvent>> for BOM {
+    fn from(value: &Vec<BOMChangeEvent>) -> Self {
+        let mut bom = BOM::default();
+        for event in value {
+            bom.apply_change(event);
+        }
+        bom
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "type", content = "data")]
 pub enum BOMChangeEvent {
     NameChanged(String),
