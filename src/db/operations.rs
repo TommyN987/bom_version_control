@@ -61,7 +61,8 @@ pub fn insert_bom(
     boms_components: Vec<DbBOMComponent>,
     change_events: Vec<BOMChangeEvent>,
 ) -> Result<(DbBOM, Vec<DbBOMComponent>), anyhow::Error> {
-    let bom_version = BOMVersion::from((&new_bom, &change_events));
+    let mut bom_version = BOMVersion::from((&new_bom, &change_events));
+    bom_version.version = 0;
     conn.build_transaction().run(|conn| {
         let new_db_bom: DbBOM = diesel::insert_into(boms::table)
             .values(&new_bom)

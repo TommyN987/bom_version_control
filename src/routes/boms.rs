@@ -24,7 +24,7 @@ use super::ApiError;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NewBOM {
-    events: Vec<BOMChangeEvent>,
+    pub events: Vec<BOMChangeEvent>,
 }
 
 impl Display for NewBOM {
@@ -50,7 +50,7 @@ impl TryFrom<&NewBOM> for DbBOM {
             id: Uuid::new_v4(),
             name: bom.name.clone(),
             description: bom.description.clone(),
-            version: bom.version,
+            version: 1,
             created_at: bom.created_at,
             updated_at: bom.updated_at,
         })

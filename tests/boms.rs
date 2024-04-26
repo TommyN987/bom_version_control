@@ -3,11 +3,10 @@ mod helpers;
 use bom_version_control::{
     db::models::db_bom_version::BOMVersion,
     domain::{BOMChangeEvent, Component, Price, BOM},
-    routes::{NewBOM, NewComponent},
+    routes::NewBOM,
     schema::bom_versions,
 };
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
-use reqwest::Client;
 use uuid::Uuid;
 
 use crate::helpers::spawn_app;
@@ -16,38 +15,13 @@ use crate::helpers::spawn_app;
 async fn create_bom_returns_created() {
     // Arrange
     let app = spawn_app().await;
-    let client = Client::new();
 
-    let comp: Component = client
-        .post(&format!("{}/components", &app.addr))
-        .json(&NewComponent::new(
-            "TestComponent".to_string(),
-            "12345".to_string(),
-            Some("TestComponentDescription".to_string()),
-            "TestSupplier".to_string(),
-            Price {
-                value: 100.0,
-                currency: "EUR".to_string(),
-            },
-        ))
-        .send()
-        .await
-        .expect("Failed to execute create component request")
-        .json::<Component>()
-        .await
-        .expect("Failed to parse response");
+    let comp = app
+        .post_component("TestComp1".to_string(), "123456".to_string())
+        .await;
 
     // Act
-    let response = client
-        .post(&format!("{}/boms", &app.addr))
-        .json(&NewBOM::new(
-            "TestBom".to_string(),
-            Some("TestBomDescription".to_string()),
-            vec![(comp.id, 1)],
-        ))
-        .send()
-        .await
-        .expect("Failed to execute create bom request");
+    let response = app.post_bom(&vec![comp]).await;
 
     // Assert
     assert_eq!(response.status().as_u16(), 201);
@@ -57,16 +31,28 @@ async fn create_bom_returns_created() {
 async fn create_bom_returns_bad_request() {
     // Arrange
     let app = spawn_app().await;
-    let client = Client::new();
+
+    let comp: Component = Component {
+        id: Uuid::new_v4(),
+        name: "abcde".to_string(),
+        part_number: "123456".to_string(),
+        description: None,
+        supplier: "supplier".to_string(),
+        price: Price {
+            value: 100.0,
+            currency: "USD".to_string(),
+        },
+    };
+
+    let event = BOMChangeEvent::ComponentAdded(comp, 1);
 
     // Act
-    let response = client
+    let response = app
+        .client
         .post(&format!("{}/boms", &app.addr))
-        .json(&NewBOM::new(
-            "TestBom".to_string(),
-            Some("TestBomDescription".to_string()),
-            vec![],
-        ))
+        .json(&NewBOM {
+            events: vec![event],
+        })
         .send()
         .await
         .expect("Failed to execute create bom request");
@@ -79,43 +65,21 @@ async fn create_bom_returns_bad_request() {
 async fn get_bom_by_id_returns_correct_bom() {
     // Arrange
     let app = spawn_app().await;
-    let client = Client::new();
 
-    let comp: Component = client
-        .post(&format!("{}/components", &app.addr))
-        .json(&NewComponent::new(
-            "TestComponent".to_string(),
-            "12345".to_string(),
-            Some("TestComponentDescription".to_string()),
-            "TestSupplier".to_string(),
-            Price {
-                value: 100.0,
-                currency: "EUR".to_string(),
-            },
-        ))
-        .send()
-        .await
-        .expect("Failed to execute create component request")
-        .json::<Component>()
-        .await
-        .expect("Failed to parse response");
+    let comp = app
+        .post_component("TestComp1".to_string(), "123".to_string())
+        .await;
 
-    let added_bom = client
-        .post(&format!("{}/boms", &app.addr))
-        .json(&NewBOM::new(
-            "TestBom".to_string(),
-            Some("TestBomDescription".to_string()),
-            vec![(comp.id, 1)],
-        ))
-        .send()
+    let added_bom: BOM = app
+        .post_bom(&vec![comp])
         .await
-        .expect("Failed to execute create bom request")
-        .json::<BOM>()
+        .json()
         .await
         .expect("Failed to parse response");
 
     // Act
-    let response = client
+    let response = app
+        .client
         .get(&format!("{}/boms/{}", &app.addr, added_bom.id))
         .send()
         .await
@@ -136,10 +100,10 @@ async fn get_bom_by_id_returns_correct_bom() {
 async fn get_bom_by_id_with_invalid_id_returns_not_found() {
     // Arrange
     let app = spawn_app().await;
-    let client = Client::new();
 
     // Act
-    let response = client
+    let response = app
+        .client
         .get(&format!("{}/boms/{}", &app.addr, Uuid::new_v4()))
         .send()
         .await
@@ -153,49 +117,22 @@ async fn get_bom_by_id_with_invalid_id_returns_not_found() {
 async fn update_bom_with_invalid_input_returns_bad_request() {
     // Arrange
     let app = spawn_app().await;
-    let client = Client::new();
 
-    let comp: Component = client
-        .post(&format!("{}/components", &app.addr))
-        .json(&NewComponent::new(
-            "TestComponent".to_string(),
-            "12345".to_string(),
-            Some("TestComponentDescription".to_string()),
-            "TestSupplier".to_string(),
-            Price {
-                value: 100.0,
-                currency: "EUR".to_string(),
-            },
-        ))
-        .send()
-        .await
-        .expect("Failed to execute create component request")
-        .json::<Component>()
-        .await
-        .expect("Failed to parse response");
+    let comp: Component = app
+        .post_component("name".to_string(), "part_number".to_string())
+        .await;
 
-    let added_bom = client
-        .post(&format!("{}/boms", &app.addr))
-        .json(&NewBOM::new(
-            "TestBom".to_string(),
-            Some("TestBomDescription".to_string()),
-            vec![(comp.id, 1)],
-        ))
-        .send()
+    let added_bom = app
+        .post_bom(&vec![comp])
         .await
-        .expect("Failed to execute create bom request")
         .json::<BOM>()
         .await
         .expect("Failed to parse response");
 
     // Act
-    let response = client
+    let response = app
+        .client
         .put(&format!("{}/boms/{}", &app.addr, added_bom.id))
-        .json(&NewBOM::new(
-            "TestBom".to_string(),
-            Some("TestBomDescription".to_string()),
-            vec![(comp.id, 2)],
-        ))
         .send()
         .await
         .expect("Failed to execute update bom request");
@@ -208,43 +145,21 @@ async fn update_bom_with_invalid_input_returns_bad_request() {
 async fn update_bom_returns_created() {
     // Arrange
     let app = spawn_app().await;
-    let client = Client::new();
 
-    let comp: Component = client
-        .post(&format!("{}/components", &app.addr))
-        .json(&NewComponent::new(
-            "TestComponent".to_string(),
-            "12345".to_string(),
-            Some("TestComponentDescription".to_string()),
-            "TestSupplier".to_string(),
-            Price {
-                value: 100.0,
-                currency: "EUR".to_string(),
-            },
-        ))
-        .send()
-        .await
-        .expect("Failed to execute create component request")
-        .json::<Component>()
-        .await
-        .expect("Failed to parse response");
+    let comp: Component = app
+        .post_component("name".to_string(), "part_number".to_string())
+        .await;
 
-    let added_bom = client
-        .post(&format!("{}/boms", &app.addr))
-        .json(&NewBOM::new(
-            "TestBom".to_string(),
-            Some("TestBomDescription".to_string()),
-            vec![(comp.id, 1)],
-        ))
-        .send()
+    let added_bom = app
+        .post_bom(&vec![comp.clone()])
         .await
-        .expect("Failed to execute create bom request")
         .json::<BOM>()
         .await
         .expect("Failed to parse response");
 
     // Act
-    let response = client
+    let response = app
+        .client
         .put(&format!("{}/boms/{}", &app.addr, added_bom.id))
         .json(&vec![
             BOMChangeEvent::ComponentUpdated(comp.id, 2),
@@ -262,43 +177,20 @@ async fn update_bom_returns_created() {
 async fn update_bom_archives_old_bom() {
     // Arrange
     let app = spawn_app().await;
-    let client = Client::new();
 
-    let comp: Component = client
-        .post(&format!("{}/components", &app.addr))
-        .json(&NewComponent::new(
-            "TestComponent".to_string(),
-            "12345".to_string(),
-            Some("TestComponentDescription".to_string()),
-            "TestSupplier".to_string(),
-            Price {
-                value: 100.0,
-                currency: "EUR".to_string(),
-            },
-        ))
-        .send()
-        .await
-        .expect("Failed to execute create component request")
-        .json::<Component>()
-        .await
-        .expect("Failed to parse response");
+    let comp: Component = app
+        .post_component("name".to_string(), "part_number".to_string())
+        .await;
 
-    let added_bom = client
-        .post(&format!("{}/boms", &app.addr))
-        .json(&NewBOM::new(
-            "TestBom".to_string(),
-            Some("TestBomDescription".to_string()),
-            vec![(comp.id, 1)],
-        ))
-        .send()
+    let added_bom = app
+        .post_bom(&vec![comp.clone()])
         .await
-        .expect("Failed to execute create bom request")
         .json::<BOM>()
         .await
         .expect("Failed to parse response");
 
     // Act
-    client
+    app.client
         .put(&format!("{}/boms/{}", &app.addr, added_bom.id))
         .json(&vec![
             BOMChangeEvent::ComponentUpdated(comp.id, 2),
@@ -308,9 +200,9 @@ async fn update_bom_archives_old_bom() {
         .await
         .expect("Failed to execute update bom request");
 
-    let old_bom = bom_versions::table
+    let old_boms: Vec<BOMVersion> = bom_versions::table
         .filter(bom_versions::bom_id.eq(added_bom.id))
-        .first::<BOMVersion>(&mut app.pool.get().unwrap())
+        .load::<BOMVersion>(&mut app.pool.get().unwrap())
         .expect("Failed to get old bom");
 
     let expected_version = 1;
@@ -320,7 +212,7 @@ async fn update_bom_archives_old_bom() {
         BOMChangeEvent::NameChanged("UpdatedName".to_string())
     ]);
     // Assert
-    assert_eq!(old_bom.bom_id, expected_bom_id);
-    assert_eq!(old_bom.version, expected_version);
-    assert_eq!(old_bom.changes, expected_change_events);
+    assert_eq!(old_boms.last().unwrap().bom_id, expected_bom_id);
+    assert_eq!(old_boms.last().unwrap().version, expected_version);
+    assert_eq!(old_boms.last().unwrap().changes, expected_change_events);
 }
