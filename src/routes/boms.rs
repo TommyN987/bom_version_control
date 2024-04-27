@@ -12,8 +12,8 @@ use crate::{
     db::{
         models::{db_bom::DbBOM, db_boms_component::DbBOMComponent, db_component::DbComponent},
         operations::{
-            find_bom_by_id, find_multiple_components, get_components_of_bom_by_id, insert_bom,
-            update_and_archive_bom_by_id,
+            find_bom_by_id, find_boms, find_multiple_components, get_components_of_bom_by_id,
+            insert_bom, update_and_archive_bom_by_id,
         },
         DbPool,
     },
@@ -69,6 +69,14 @@ async fn retrieve_bom(pool: Arc<DbPool>, id: Uuid) -> Result<BOM, ApiError> {
     .await??;
 
     Ok(BOM::try_from((db_bom, db_bom_components, db_components))?)
+}
+
+#[tracing::instrument(name = "Getting BOMs", skip(pool), fields(request_id = %Uuid::new_v4()))]
+#[get("/boms")]
+pub async fn get_all_boms(pool: web::Data<DbPool>) -> Result<HttpResponse, ApiError> {
+    let mut conn = pool.get().map_err(|e| anyhow!(e))?;
+    let boms: Vec<DbBOM> = actix_web::web::block(move || find_boms(&mut conn)).await??;
+    Ok(HttpResponse::Ok().json(boms))
 }
 
 #[tracing::instrument(name = "Getting BOM by ID", skip(pool, id), fields(request_id = %Uuid::new_v4()))]
@@ -151,4 +159,14 @@ pub async fn update_bom(
         updated_bom_components,
         updated_components,
     ))?))
+}
+
+#[get("/boms/{id}/diffs?from={from}&to={to}")]
+pub async fn get_bom_diffs(
+    pool: web::Data<DbPool>,
+    id: web::Path<Uuid>,
+    from: web::Query<i32>,
+    to: web::Query<i32>,
+) -> Result<HttpResponse, ApiError> {
+    Ok(HttpResponse::Ok().json("Not implemented"))
 }
