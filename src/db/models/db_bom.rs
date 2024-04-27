@@ -8,7 +8,7 @@ use diesel::{
     query_builder::AsChangeset,
     Selectable,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
@@ -19,7 +19,15 @@ use crate::{
 use super::{db_boms_component::DbBOMComponent, db_component::DbComponent};
 
 #[derive(
-    Debug, PartialEq, Deserialize, Identifiable, Insertable, Queryable, Selectable, AsChangeset,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Identifiable,
+    Insertable,
+    Queryable,
+    Selectable,
+    AsChangeset,
 )]
 #[diesel(table_name = boms)]
 pub struct DbBOM {
