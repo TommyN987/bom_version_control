@@ -8,7 +8,13 @@ use super::{BOMDiff, Component, BOM};
 pub trait BOMChangeEventVisitor {
     fn visit_name_changed(&mut self, name: &str, bom: &BOM, diff: &mut BOMDiff);
     fn visit_description_changed(&mut self, description: &str, bom: &BOM, diff: &mut BOMDiff);
-    fn visit_component_added(&mut self, component: &Component, qty: i32, diff: &mut BOMDiff);
+    fn visit_component_added(
+        &mut self,
+        component: &Component,
+        qty: i32,
+        bom: &BOM,
+        diff: &mut BOMDiff,
+    );
     fn visit_component_updated(
         &mut self,
         component: &Uuid,
@@ -37,7 +43,7 @@ impl BOMChangeEvent {
                 visitor.visit_description_changed(description, bom, diff)
             }
             BOMChangeEvent::ComponentAdded(component, qty) => {
-                visitor.visit_component_added(component, *qty, diff)
+                visitor.visit_component_added(component, *qty, bom, diff)
             }
             BOMChangeEvent::ComponentUpdated(id, qty) => {
                 visitor.visit_component_updated(id, *qty, bom, diff)
