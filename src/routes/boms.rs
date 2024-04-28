@@ -163,10 +163,10 @@ pub async fn update_bom(
 
 #[get("/boms/{id}/diffs?from={from}&to={to}")]
 pub async fn get_bom_diffs(
-    pool: web::Data<DbPool>,
-    id: web::Path<Uuid>,
-    from: web::Query<i32>,
-    to: web::Query<i32>,
+    _pool: web::Data<DbPool>,
+    _id: web::Path<Uuid>,
+    _from: web::Query<i32>,
+    _to: web::Query<i32>,
 ) -> Result<HttpResponse, ApiError> {
     Ok(HttpResponse::Ok().json("Not implemented"))
 }
