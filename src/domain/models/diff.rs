@@ -55,7 +55,28 @@ impl BOMChangeEventVisitor for BOMDiffVisitor {
         });
     }
 
-    fn visit_component_added(&mut self, component: &Component, qty: i32, diff: &mut BOMDiff) {
+    fn visit_component_added(
+        &mut self,
+        component: &Component,
+        qty: i32,
+        bom: &BOM,
+        diff: &mut BOMDiff,
+    ) {
+        if diff.components_removed.iter().any(|c| c.id == component.id) {
+            diff.components_removed.retain(|c| c.id != component.id);
+        }
+
+        if let Some(comp) = bom.components.iter().find(|(c, _)| c.id == component.id) {
+            diff.components_updated.insert(
+                component.id,
+                PartialDiff {
+                    from: comp.clone(),
+                    to: (component.clone(), qty),
+                },
+            );
+            return;
+        }
+
         diff.components_added
             .insert(component.id, (component.clone(), qty));
     }
@@ -330,6 +351,50 @@ mod tests {
     }
 
     #[test]
+    fn test_component_removed_readded() {
+        let (bom, component_1, _) = setup_test_bom_and_components();
+
+        let diff = BOMDiff::from((
+            &bom,
+            &vec![
+                BOMChangeEvent::ComponentRemoved(component_1.clone()),
+                BOMChangeEvent::ComponentAdded(component_1.clone(), 2),
+            ],
+        ));
+
+        assert!(diff.components_removed.is_empty());
+
+        assert_eq!(
+            diff.components_updated.get(&component_1.id),
+            Some(&PartialDiff {
+                from: (component_1.clone(), 1),
+                to: (component_1.clone(), 2)
+            })
+        );
+    }
+
+    #[test]
+    fn test_component_added_removed_readded() {
+        let (bom, _, component_2) = setup_test_bom_and_components();
+
+        let diff = BOMDiff::from((
+            &bom,
+            &vec![
+                BOMChangeEvent::ComponentAdded(component_2.clone(), 2),
+                BOMChangeEvent::ComponentRemoved(component_2.clone()),
+                BOMChangeEvent::ComponentAdded(component_2.clone(), 3),
+            ],
+        ));
+
+        assert_eq!(
+            diff.components_added.get(&component_2.id),
+            Some(&(component_2.clone(), 3))
+        );
+
+        assert!(diff.components_removed.is_empty());
+    }
+
+    #[test]
     fn test_many_events_happened() {
         let (bom, component_1, component_2) = setup_test_bom_and_components();
 
@@ -388,5 +453,18 @@ mod tests {
         assert!(diff.components_updated.is_empty());
 
         assert_eq!(diff.components_removed, vec![component_1]);
+    }
+
+    #[test]
+    fn test_no_events() {
+        let (bom, _, _) = setup_test_bom_and_components();
+
+        let diff = BOMDiff::from((&bom, &vec![]));
+
+        assert!(diff.name_changed.is_none());
+        assert!(diff.description_changed.is_none());
+        assert!(diff.components_added.is_empty());
+        assert!(diff.components_removed.is_empty());
+        assert!(diff.components_updated.is_empty());
     }
 }
