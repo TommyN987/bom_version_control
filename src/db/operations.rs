@@ -1,10 +1,12 @@
 use anyhow::anyhow;
-use bom::{ValidationError, BOM};
 use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::{
-    domain::{bom, BOMChangeEvent, BOMChangeEventValidator},
+    domain::{
+        validation::{BOMChangeEventValidator, ValidationError},
+        BOMChangeEvent, BOM,
+    },
     schema::{bom_versions, boms, boms_components, components},
 };
 
