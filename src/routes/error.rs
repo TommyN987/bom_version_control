@@ -1,6 +1,8 @@
 use actix_web::{error::BlockingError, ResponseError};
 use diesel::{r2d2::Error as R2D2Error, result::Error as DieselError};
 
+use crate::domain::ValidationError;
+
 #[derive(thiserror::Error, Debug)]
 pub enum ApiError {
     #[error(transparent)]
@@ -39,5 +41,11 @@ impl From<R2D2Error> for ApiError {
 impl From<BlockingError> for ApiError {
     fn from(value: BlockingError) -> Self {
         Self::Unexpected(value.into())
+    }
+}
+
+impl From<ValidationError> for ApiError {
+    fn from(value: ValidationError) -> Self {
+        Self::BadRequest(value.0)
     }
 }

@@ -2,9 +2,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::domain::Component;
+pub use crate::domain::ValidationError;
+use crate::domain::{BOMChangeEventValidator, Validator};
 
-use super::BOMChangeEvent;
+use super::{BOMChangeEvent, Component};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BOM {
@@ -31,18 +32,25 @@ impl Default for BOM {
     }
 }
 
-impl From<&Vec<BOMChangeEvent>> for BOM {
-    fn from(value: &Vec<BOMChangeEvent>) -> Self {
+impl TryFrom<&Vec<BOMChangeEvent>> for BOM {
+    type Error = ValidationError;
+
+    fn try_from(value: &Vec<BOMChangeEvent>) -> Result<Self, Self::Error> {
         let mut bom = BOM::default();
         for event in value {
-            bom.apply_change(event);
+            bom.apply_change(event, BOMChangeEventValidator)?;
         }
-        bom
+        Ok(bom)
     }
 }
 
 impl BOM {
-    pub fn apply_change(&mut self, event: &BOMChangeEvent) {
+    pub fn apply_change<T: Validator<BOMChangeEvent>>(
+        &mut self,
+        event: &BOMChangeEvent,
+        validator: T,
+    ) -> Result<(), ValidationError> {
+        validator.validate(event)?;
         match event {
             BOMChangeEvent::NameChanged(name) => {
                 self.name = name.clone();
@@ -64,9 +72,72 @@ impl BOM {
                 });
             }
         }
+        Ok(())
     }
 
     pub fn increment_version(&mut self) {
         self.version += 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::{BOMChangeEvent, Component, MockValidator, Price};
+
+    fn create_test_component() -> Component {
+        Component {
+            id: Uuid::new_v4(),
+            name: "Test Component".to_string(),
+            description: Some("Test Description".to_string()),
+            part_number: "123456".to_string(),
+            supplier: "Test Supplier".to_string(),
+            price: Price {
+                value: 10.0,
+                currency: "USD".to_string(),
+            },
+        }
+    }
+
+    fn setup_test_bom() -> BOM {
+        let mut bom = BOM::default();
+        bom.name = "Test BOM".to_string();
+        bom.version = 1;
+        bom.description = Some("Test Description".to_string());
+        bom.components.push((create_test_component(), 1));
+        bom
+    }
+
+    #[test]
+    fn test_apply_change_name_changed() {
+        let mut bom = setup_test_bom();
+        let mut mock_validator = MockValidator::<BOMChangeEvent>::new();
+
+        mock_validator
+            .expect_validate()
+            .times(1)
+            .returning(|_| Ok(()));
+
+        let event = BOMChangeEvent::NameChanged("New Name".to_string());
+        let _ = bom.apply_change(&event, mock_validator);
+
+        assert_eq!(bom.name, "New Name");
+    }
+
+    #[test]
+    fn test_apply_change_name_changed_with_invalid_name() {
+        let mut bom = setup_test_bom();
+        let mut mock_validator = MockValidator::<BOMChangeEvent>::new();
+
+        mock_validator
+            .expect_validate()
+            .times(1)
+            .returning(|_| Err(ValidationError("Invalid name input".to_string())));
+
+        let event = BOMChangeEvent::NameChanged("".to_string());
+        let result = bom.apply_change(&event, mock_validator);
+
+        assert!(result.is_err());
+        assert_eq!(bom.name, "Test BOM");
     }
 }
