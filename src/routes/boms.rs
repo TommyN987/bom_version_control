@@ -37,7 +37,7 @@ impl TryFrom<&NewBOM> for DbBOM {
     type Error = ApiError;
 
     fn try_from(value: &NewBOM) -> Result<Self, Self::Error> {
-        let bom = BOM::from(&value.events);
+        let bom = BOM::try_from(&value.events)?;
         if bom.name.is_empty() {
             return Err(ApiError::BadRequest("Name is required".to_string()));
         }

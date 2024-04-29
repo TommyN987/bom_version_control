@@ -1,10 +1,10 @@
 use anyhow::anyhow;
-use bom::BOM;
+use bom::{ValidationError, BOM};
 use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::{
-    domain::{bom, BOMChangeEvent},
+    domain::{bom, BOMChangeEvent, BOMChangeEventValidator},
     schema::{bom_versions, boms, boms_components, components},
 };
 
@@ -109,9 +109,12 @@ pub fn update_and_archive_bom_by_id(
     let mut bom: BOM = (db_bom, bom_components, components).try_into()?;
     bom.increment_version();
 
-    change_events
+    let _ = change_events
         .iter()
-        .for_each(|event| bom.apply_change(event));
+        .try_for_each(|event| -> Result<(), ValidationError> {
+            bom.apply_change(event, BOMChangeEventValidator)?;
+            Ok(())
+        });
 
     let (new_db_bom, new_db_bom_components) = bom.into();
 
