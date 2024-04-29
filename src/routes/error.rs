@@ -1,7 +1,7 @@
 use actix_web::{error::BlockingError, ResponseError};
 use diesel::{r2d2::Error as R2D2Error, result::Error as DieselError};
 
-use crate::domain::ValidationError;
+use crate::domain::validation::ValidationError;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ApiError {
