@@ -9,13 +9,13 @@ use super::{BOMChangeEvent, BOMChangeEventVisitor, Component, BOM};
 #[error("Invalid input: {0}")]
 pub struct ConversionError(String);
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PartialDiff<T> {
     pub from: T,
     pub to: T,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct BOMDiff {
     pub name_changed: Option<PartialDiff<String>>,
     pub description_changed: Option<PartialDiff<String>>,
@@ -38,7 +38,7 @@ impl From<(&BOM, &Vec<BOMChangeEvent>)> for BOMDiff {
     }
 }
 
-struct BOMDiffVisitor;
+pub struct BOMDiffVisitor;
 
 impl BOMChangeEventVisitor for BOMDiffVisitor {
     fn visit_name_changed(&mut self, name: &str, bom: &BOM, diff: &mut BOMDiff) {

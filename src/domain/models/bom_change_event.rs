@@ -74,3 +74,159 @@ impl Display for BOMChangeEvent {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use mockall::{
+        mock,
+        predicate::{self, *},
+    };
+
+    use crate::domain::Price;
+
+    use super::*;
+
+    mock! {
+        pub BOMDiffVisitor {}
+        impl BOMChangeEventVisitor for BOMDiffVisitor {
+            fn visit_name_changed(&mut self, name: &str, bom: &BOM, diff: &mut BOMDiff);
+            fn visit_description_changed(&mut self, description: &str, bom: &BOM, diff: &mut BOMDiff);
+            fn visit_component_added(
+                &mut self,
+                component: &Component,
+                qty: i32,
+                bom: &BOM,
+                diff: &mut BOMDiff,
+            );
+            fn visit_component_updated(
+                &mut self,
+                component: &Uuid,
+                qty: i32,
+                bom: &BOM,
+                diff: &mut BOMDiff,
+            );
+            fn visit_component_removed(&mut self, component: &Component, diff: &mut BOMDiff);
+        }
+    }
+
+    #[test]
+    fn test_name_changed_event() {
+        let mut visitor = MockBOMDiffVisitor::new();
+        let mut diff = BOMDiff::default();
+        let bom = BOM::default();
+
+        visitor
+            .expect_visit_name_changed()
+            .with(
+                predicate::always(),
+                predicate::always(),
+                predicate::always(),
+            )
+            .times(1)
+            .returning(|_, _, _| {});
+
+        let event = BOMChangeEvent::NameChanged("new name".to_string());
+        event.accept(&mut visitor, &bom, &mut diff);
+    }
+
+    #[test]
+    fn test_description_changed_event() {
+        let mut visitor = MockBOMDiffVisitor::new();
+        let mut diff = BOMDiff::default();
+        let bom = BOM::default();
+
+        visitor
+            .expect_visit_description_changed()
+            .with(
+                predicate::always(),
+                predicate::always(),
+                predicate::always(),
+            )
+            .times(1)
+            .returning(|_, _, _| {});
+
+        let event = BOMChangeEvent::DescriptionChanged("new description".to_string());
+        event.accept(&mut visitor, &bom, &mut diff);
+    }
+
+    #[test]
+    fn test_component_added_event() {
+        let mut visitor = MockBOMDiffVisitor::new();
+        let mut diff = BOMDiff::default();
+        let bom = BOM::default();
+        let component = Component {
+            id: Uuid::new_v4(),
+            name: "Component".to_string(),
+            description: Some("Description".to_string()),
+            supplier: "Supplier".to_string(),
+            part_number: "12345".to_string(),
+            price: Price {
+                value: 10.0,
+                currency: "USD".to_string(),
+            },
+        };
+
+        visitor
+            .expect_visit_component_added()
+            .with(
+                predicate::always(),
+                predicate::always(),
+                predicate::always(),
+                predicate::always(),
+            )
+            .times(1)
+            .returning(|_, _, _, _| {});
+
+        let event = BOMChangeEvent::ComponentAdded(component, 10);
+        event.accept(&mut visitor, &bom, &mut diff);
+    }
+
+    #[test]
+    fn test_component_updated_event() {
+        let mut visitor = MockBOMDiffVisitor::new();
+        let mut diff = BOMDiff::default();
+        let bom = BOM::default();
+        let component = Uuid::new_v4();
+
+        visitor
+            .expect_visit_component_updated()
+            .with(
+                predicate::always(),
+                predicate::always(),
+                predicate::always(),
+                predicate::always(),
+            )
+            .times(1)
+            .returning(|_, _, _, _| {});
+
+        let event = BOMChangeEvent::ComponentUpdated(component, 10);
+        event.accept(&mut visitor, &bom, &mut diff);
+    }
+
+    #[test]
+    fn test_component_removed_event() {
+        let mut visitor = MockBOMDiffVisitor::new();
+        let mut diff = BOMDiff::default();
+        let bom = BOM::default();
+        let component = Component {
+            id: Uuid::new_v4(),
+            name: "Component".to_string(),
+            description: Some("Description".to_string()),
+            supplier: "Supplier".to_string(),
+            part_number: "12345".to_string(),
+            price: Price {
+                value: 10.0,
+                currency: "USD".to_string(),
+            },
+        };
+
+        visitor
+            .expect_visit_component_removed()
+            .with(predicate::always(), predicate::always())
+            .times(1)
+            .returning(|_, _| {});
+
+        let event = BOMChangeEvent::ComponentRemoved(component);
+        event.accept(&mut visitor, &bom, &mut diff);
+    }
+}

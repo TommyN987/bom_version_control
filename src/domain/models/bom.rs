@@ -6,7 +6,7 @@ use crate::domain::validation::{BOMChangeEventValidator, ValidationError, Valida
 
 use super::{BOMChangeEvent, Component};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct BOM {
     pub id: Uuid,
     pub name: String,
