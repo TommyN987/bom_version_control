@@ -110,8 +110,6 @@ impl BOMChangeEventVisitor for BOMDiffVisitor {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
-
     use crate::domain::Price;
 
     use super::*;
@@ -146,8 +144,6 @@ mod tests {
             version: 1,
             description: Some("Test description".to_string()),
             components: vec![(component_1.clone(), 1)],
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
         };
 
         (bom, component_1, component_2)

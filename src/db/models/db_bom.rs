@@ -46,8 +46,8 @@ impl From<&BOM> for DbBOM {
             name: value.name.clone(),
             description: value.description.clone(),
             version: value.version,
-            created_at: value.created_at,
-            updated_at: value.updated_at,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
         }
     }
 }
@@ -81,8 +81,6 @@ impl TryFrom<(DbBOM, Vec<DbBOMComponent>, Vec<DbComponent>)> for BOM {
                 .into_values()
                 .map(|(comp, qty)| comp.ok_or(anyhow!("Component not found")).map(|c| (c, qty)))
                 .collect::<Result<Vec<(Component, i32)>, _>>()?,
-            created_at: db_bom.created_at,
-            updated_at: db_bom.updated_at,
         })
     }
 }

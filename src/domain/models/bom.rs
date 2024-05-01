@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -13,8 +12,6 @@ pub struct BOM {
     pub version: i32,
     pub description: Option<String>,
     pub components: Vec<(Component, i32)>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
 }
 
 impl Default for BOM {
@@ -25,8 +22,6 @@ impl Default for BOM {
             version: 0,
             description: None,
             components: Vec::new(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
         }
     }
 }
