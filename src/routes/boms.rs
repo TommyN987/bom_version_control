@@ -169,16 +169,20 @@ pub struct VersionRange {
 }
 
 #[get("/boms/{id}/diffs")]
-pub async fn get_bom_diffs(
+pub async fn get_bom_diff(
     pool: web::Data<DbPool>,
     id: web::Path<Uuid>,
     params: web::Query<VersionRange>,
 ) -> Result<HttpResponse, ApiError> {
+    if params.from >= params.to {
+        return Err(ApiError::BadRequest("Invalid version range".to_string()));
+    }
+
     let mut conn = pool.get().map_err(|e| anyhow!(e))?;
     let bom_id = id.into_inner();
     let params = params.into_inner();
     let resp = actix_web::web::block(move || {
-        fetch_change_events_until_version(&mut conn, bom_id, params.to)
+        fetch_change_events_until_version(&mut conn, bom_id, params.to - 1)
     })
     .await??;
 
@@ -187,7 +191,7 @@ pub async fn get_bom_diffs(
 
     for (i, (_, values)) in resp.iter().enumerate() {
         if let Value::Array(array) = values {
-            if i <= params.from as usize {
+            if i <= (params.from - 1) as usize {
                 for item in array {
                     events_until_starting_bom.push(serde_json::from_value(item.clone())?);
                 }
