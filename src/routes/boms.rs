@@ -5,6 +5,7 @@ use std::{
 
 use actix_web::{get, post, put, web, HttpResponse};
 use anyhow::anyhow;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
@@ -52,8 +53,8 @@ impl TryFrom<&NewBOM> for DbBOM {
             name: bom.name.clone(),
             description: bom.description.clone(),
             version: 1,
-            created_at: bom.created_at,
-            updated_at: bom.updated_at,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
         })
     }
 }
@@ -208,4 +209,50 @@ pub async fn get_bom_diff(
     let diff = BOMDiff::from((&initial_bom, &events_until_ending_bom));
 
     Ok(HttpResponse::Ok().json(diff))
+}
+
+#[derive(Deserialize)]
+pub struct VersionQuery {
+    version: i32,
+}
+
+#[get("/boms/{id}/")]
+pub async fn get_bom_version(
+    pool: web::Data<DbPool>,
+    id: web::Path<Uuid>,
+    version: web::Query<VersionQuery>,
+) -> Result<HttpResponse, ApiError> {
+    let mut conn = pool.get().map_err(|e| anyhow!(e))?;
+    let bom_id = id.into_inner();
+    let version = version.into_inner();
+
+    let resp = actix_web::web::block(move || {
+        fetch_change_events_until_version(&mut conn, bom_id, version.version - 1)
+    })
+    .await??;
+
+    let mut events_until_version: Vec<BOMChangeEvent> = Vec::new();
+    let mut version_number = 0;
+
+    for (v, values) in resp.iter() {
+        if let Value::Array(array) = values {
+            for item in array {
+                events_until_version.push(serde_json::from_value(item.clone())?);
+                version_number = *v + 1;
+            }
+        }
+    }
+
+    let mut bom = BOM::try_from(&events_until_version)?;
+    bom.id = bom_id;
+    bom.version = version_number;
+
+    if bom.version < version.version {
+        return Err(ApiError::NotFound(format!(
+            "Version not found. Your latest version is {}",
+            &bom.version
+        )));
+    }
+
+    Ok(HttpResponse::Ok().json(bom))
 }
