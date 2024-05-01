@@ -6,18 +6,19 @@ use std::{
 use actix_web::{get, post, put, web, HttpResponse};
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
     db::{
         models::{db_bom::DbBOM, db_boms_component::DbBOMComponent, db_component::DbComponent},
         operations::{
-            find_bom_by_id, find_boms, find_multiple_components, get_components_of_bom_by_id,
-            insert_bom, update_and_archive_bom_by_id,
+            fetch_change_events_until_version, find_bom_by_id, find_boms, find_multiple_components,
+            get_components_of_bom_by_id, insert_bom, update_and_archive_bom_by_id,
         },
         DbPool,
     },
-    domain::{BOMChangeEvent, BOM},
+    domain::{BOMChangeEvent, BOMDiff, BOM},
 };
 
 use super::ApiError;
@@ -161,12 +162,46 @@ pub async fn update_bom(
     ))?))
 }
 
-#[get("/boms/{id}/diffs?from={from}&to={to}")]
+#[derive(Deserialize)]
+pub struct VersionRange {
+    pub from: i32,
+    pub to: i32,
+}
+
+#[get("/boms/{id}/diffs")]
 pub async fn get_bom_diffs(
-    _pool: web::Data<DbPool>,
-    _id: web::Path<Uuid>,
-    _from: web::Query<i32>,
-    _to: web::Query<i32>,
+    pool: web::Data<DbPool>,
+    id: web::Path<Uuid>,
+    params: web::Query<VersionRange>,
 ) -> Result<HttpResponse, ApiError> {
-    Ok(HttpResponse::Ok().json("Not implemented"))
+    let mut conn = pool.get().map_err(|e| anyhow!(e))?;
+    let bom_id = id.into_inner();
+    let params = params.into_inner();
+    let resp = actix_web::web::block(move || {
+        fetch_change_events_until_version(&mut conn, bom_id, params.to)
+    })
+    .await??;
+
+    let mut events_until_starting_bom: Vec<BOMChangeEvent> = Vec::new();
+    let mut events_until_ending_bom: Vec<BOMChangeEvent> = Vec::new();
+
+    for (i, (_, values)) in resp.iter().enumerate() {
+        if let Value::Array(array) = values {
+            if i <= params.from as usize {
+                for item in array {
+                    events_until_starting_bom.push(serde_json::from_value(item.clone())?);
+                }
+            } else {
+                for item in array {
+                    events_until_ending_bom.push(serde_json::from_value(item.clone())?);
+                }
+            }
+        }
+    }
+
+    let initial_bom = BOM::try_from(&events_until_starting_bom)?;
+
+    let diff = BOMDiff::from((&initial_bom, &events_until_ending_bom));
+
+    Ok(HttpResponse::Ok().json(diff))
 }

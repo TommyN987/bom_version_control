@@ -49,3 +49,9 @@ impl From<ValidationError> for ApiError {
         Self::BadRequest(value.0)
     }
 }
+
+impl From<serde_json::Error> for ApiError {
+    fn from(value: serde_json::Error) -> Self {
+        Self::Unexpected(value.into())
+    }
+}
