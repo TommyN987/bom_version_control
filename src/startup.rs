@@ -6,8 +6,8 @@ use tracing_actix_web::TracingLogger;
 use crate::{
     db::DbPool,
     routes::{
-        create_bom, create_component, get_all_boms, get_bom_by_id, get_component_by_id,
-        get_components, health_check, update_bom,
+        create_bom, create_component, get_all_boms, get_bom_by_id, get_bom_diffs,
+        get_component_by_id, get_components, health_check, update_bom,
     },
 };
 
@@ -23,6 +23,7 @@ pub fn run(listener: TcpListener, pool: DbPool) -> Result<Server, std::io::Error
             .service(get_bom_by_id)
             .service(create_bom)
             .service(update_bom)
+            .service(get_bom_diffs)
             .app_data(Data::new(pool.clone()))
     })
     .listen(listener)?

@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use diesel::prelude::*;
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
@@ -145,4 +146,19 @@ pub fn update_and_archive_bom_by_id(
     let (_, components) = get_components_of_bom_by_id(conn, updated_bom.id)?;
 
     Ok((updated_bom, updated_bom_components, components))
+}
+
+pub fn fetch_change_events_until_version(
+    conn: &mut PgConnection,
+    bom_id: Uuid,
+    version: i32,
+) -> Result<Vec<(i32, Value)>, anyhow::Error> {
+    let results: Vec<(i32, Value)> = bom_versions::table
+        .filter(bom_versions::bom_id.eq(bom_id))
+        .filter(bom_versions::version.le(version))
+        .order(bom_versions::version.asc())
+        .select((bom_versions::version, bom_versions::changes))
+        .load(conn)?;
+
+    Ok(results)
 }
