@@ -1,8 +1,10 @@
 mod helpers;
 
+use std::collections::HashMap;
+
 use bom_version_control::{
     db::models::db_bom_version::BOMVersion,
-    domain::{BOMChangeEvent, Component, Price, BOM},
+    domain::{BOMChangeEvent, BOMDiff, Component, PartialDiff, Price, BOM},
     routes::NewBOM,
     schema::bom_versions,
 };
@@ -215,4 +217,93 @@ async fn update_bom_archives_old_bom() {
     assert_eq!(old_boms.last().unwrap().bom_id, expected_bom_id);
     assert_eq!(old_boms.last().unwrap().version, expected_version);
     assert_eq!(old_boms.last().unwrap().changes, expected_change_events);
+}
+
+#[tokio::test]
+async fn get_bom_diff_returns_with_invalid_version_range_bad_request() {
+    // Arrange
+    let app = spawn_app().await;
+
+    // Act
+    let response = app
+        .client
+        .get(&format!(
+            "{}/boms/{}/diffs?from=1&to=1",
+            &app.addr,
+            Uuid::new_v4()
+        ))
+        .send()
+        .await
+        .expect("Failed to execute get bom diffs request");
+
+    // Assert
+    assert_eq!(response.status().as_u16(), 400);
+}
+
+#[tokio::test]
+async fn get_bom_diff_returns_correct_diffs() {
+    // Arrange
+    let app = spawn_app().await;
+
+    let comp: Component = app
+        .post_component("name".to_string(), "part_number".to_string())
+        .await;
+
+    let added_bom = app
+        .post_bom(&vec![comp.clone()])
+        .await
+        .json::<BOM>()
+        .await
+        .expect("Failed to parse response");
+
+    app.client
+        .put(&format!("{}/boms/{}", &app.addr, added_bom.id))
+        .json(&vec![
+            BOMChangeEvent::ComponentUpdated(comp.id, 2),
+            BOMChangeEvent::NameChanged("UpdatedName".to_string()),
+        ])
+        .send()
+        .await
+        .expect("Failed to execute update bom request");
+
+    // Act
+    let response = app
+        .client
+        .get(&format!(
+            "{}/boms/{}/diffs?from=1&to=2",
+            &app.addr, added_bom.id
+        ))
+        .send()
+        .await
+        .expect("Failed to execute get bom diffs request");
+
+    // Assert
+    assert_eq!(response.status().as_u16(), 200);
+
+    let returned_diff = response
+        .json::<BOMDiff>()
+        .await
+        .expect("Failed to parse response");
+
+    let mut expected_components_added = HashMap::new();
+    expected_components_added.insert(
+        comp.id,
+        PartialDiff {
+            from: (comp.clone(), 1),
+            to: (comp.clone(), 2),
+        },
+    );
+
+    let expected_diff = BOMDiff {
+        name_changed: Some(PartialDiff {
+            from: "TestBom".to_string(),
+            to: "UpdatedName".to_string(),
+        }),
+        description_changed: None,
+        components_added: HashMap::new(),
+        components_updated: expected_components_added,
+        components_removed: Vec::new(),
+    };
+
+    assert_eq!(returned_diff, expected_diff);
 }
