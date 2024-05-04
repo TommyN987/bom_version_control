@@ -355,3 +355,63 @@ async fn get_bom_version_returns_correct_version() {
 
     assert_eq!(returned_bom, added_bom);
 }
+
+#[tokio::test]
+async fn revert_bom_to_version_reverts_to_correct_version() {
+    // Arrange
+    let app = spawn_app().await;
+
+    let comp: Component = app
+        .post_component("name".to_string(), "part_number".to_string())
+        .await;
+
+    let added_bom = app
+        .post_bom(&vec![comp.clone()])
+        .await
+        .json::<BOM>()
+        .await
+        .expect("Failed to parse response");
+
+    app.client
+        .put(&format!("{}/boms/{}", &app.addr, added_bom.id))
+        .json(&vec![
+            BOMChangeEvent::ComponentUpdated(comp.id, 2),
+            BOMChangeEvent::NameChanged("UpdatedName".to_string()),
+        ])
+        .send()
+        .await
+        .expect("Failed to execute update bom request");
+
+    // Act
+    let response = app
+        .client
+        .put(&format!(
+            "{}/boms/{}/?revert_to_version={}",
+            &app.addr, added_bom.id, 1
+        ))
+        .send()
+        .await
+        .expect("Failed to execute revert bom request");
+    assert_eq!(response.status().as_u16(), 201);
+
+    let revert = response
+        .json::<BOM>()
+        .await
+        .expect("Failed to parse response");
+    println!("revert: {:?}", revert);
+
+    // Assert
+    let reverted_bom = app
+        .client
+        .get(&format!("{}/boms/{}", &app.addr, added_bom.id))
+        .send()
+        .await
+        .expect("Failed to execute get bom request")
+        .json::<BOM>()
+        .await
+        .expect("Failed to parse response");
+
+    assert_eq!(reverted_bom.name, added_bom.name);
+    assert_eq!(reverted_bom.components, added_bom.components);
+    assert_eq!(reverted_bom.version, 3);
+}
