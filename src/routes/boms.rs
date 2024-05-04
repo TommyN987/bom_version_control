@@ -15,7 +15,7 @@ use crate::{
         models::{db_bom::DbBOM, db_boms_component::DbBOMComponent, db_component::DbComponent},
         operations::{
             fetch_change_events_until_version, find_bom_by_id, find_boms, find_multiple_components,
-            get_components_of_bom_by_id, insert_bom, update_and_archive_bom_by_id,
+            get_components_of_bom_by_id, insert_bom, update_and_archive_bom_by_id, UpdateOperation,
         },
         DbPool,
     },
@@ -151,7 +151,12 @@ pub async fn update_bom(
 
     let (updated_bom, updated_bom_components, updated_components) = actix_web::web::block(
         move || -> Result<(DbBOM, Vec<DbBOMComponent>, Vec<DbComponent>), anyhow::Error> {
-            update_and_archive_bom_by_id(&mut conn, bom_id, change_events)
+            update_and_archive_bom_by_id(
+                &mut conn,
+                bom_id,
+                change_events,
+                UpdateOperation::Incremental,
+            )
         },
     )
     .await??;
@@ -222,14 +227,76 @@ pub async fn get_bom_version(
     id: web::Path<Uuid>,
     version: web::Query<VersionQuery>,
 ) -> Result<HttpResponse, ApiError> {
-    let mut conn = pool.get().map_err(|e| anyhow!(e))?;
     let bom_id = id.into_inner();
     let version = version.into_inner();
 
-    let resp = actix_web::web::block(move || {
-        fetch_change_events_until_version(&mut conn, bom_id, version.version - 1)
+    let bom = get_bom_by_version(pool.into_inner(), bom_id, version.version - 1).await?;
+
+    Ok(HttpResponse::Ok().json(bom))
+}
+
+#[derive(Deserialize)]
+struct RevertBOM {
+    revert_to_version: i32,
+}
+
+#[put("/boms/{id}/")]
+pub async fn revert_bom_to_version(
+    pool: web::Data<DbPool>,
+    id: web::Path<Uuid>,
+    version: web::Query<RevertBOM>,
+) -> Result<HttpResponse, ApiError> {
+    let bom_id = id.into_inner();
+    let version = version.into_inner();
+    let pool = pool.into_inner();
+
+    let (events_until_version, _) =
+        get_bom_change_events_until_version(pool.clone(), bom_id, version.revert_to_version - 1)
+            .await?;
+
+    println!("events_until_version: {:?}", events_until_version);
+
+    let reverted_bom = actix_web::web::block(move || {
+        let mut conn = pool.clone().get().map_err(|e| anyhow!(e))?;
+        update_and_archive_bom_by_id(
+            &mut conn,
+            bom_id,
+            events_until_version,
+            UpdateOperation::Revert,
+        )
     })
     .await??;
+
+    Ok(HttpResponse::Created().json(BOM::try_from(reverted_bom)?))
+}
+
+async fn get_bom_by_version(pool: Arc<DbPool>, id: Uuid, version: i32) -> Result<BOM, ApiError> {
+    let (events_until_version, version_number) =
+        get_bom_change_events_until_version(pool.clone(), id, version).await?;
+
+    let mut bom = BOM::try_from(&events_until_version)?;
+    bom.id = id;
+    bom.version = version_number;
+
+    if bom.version < version {
+        return Err(ApiError::NotFound(format!(
+            "Version not found. Your latest version is {}",
+            &bom.version
+        )));
+    }
+
+    Ok(bom)
+}
+
+async fn get_bom_change_events_until_version(
+    pool: Arc<DbPool>,
+    id: Uuid,
+    version: i32,
+) -> Result<(Vec<BOMChangeEvent>, i32), ApiError> {
+    let mut conn = pool.get().map_err(|e| anyhow!(e))?;
+    let resp =
+        actix_web::web::block(move || fetch_change_events_until_version(&mut conn, id, version))
+            .await??;
 
     let mut events_until_version: Vec<BOMChangeEvent> = Vec::new();
     let mut version_number = 0;
@@ -243,16 +310,5 @@ pub async fn get_bom_version(
         }
     }
 
-    let mut bom = BOM::try_from(&events_until_version)?;
-    bom.id = bom_id;
-    bom.version = version_number;
-
-    if bom.version < version.version {
-        return Err(ApiError::NotFound(format!(
-            "Version not found. Your latest version is {}",
-            &bom.version
-        )));
-    }
-
-    Ok(HttpResponse::Ok().json(bom))
+    Ok((events_until_version, version_number))
 }

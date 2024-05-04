@@ -70,7 +70,7 @@ impl TestApp {
             BOMChangeEvent::DescriptionChanged("TestBomDescription".to_string());
 
         let events: Vec<BOMChangeEvent> = components
-            .into_iter()
+            .iter()
             .map(|c| BOMChangeEvent::ComponentAdded(c.clone(), 1))
             .chain(vec![name_change, description_change])
             .collect();

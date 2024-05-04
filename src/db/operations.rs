@@ -16,6 +16,11 @@ use super::models::{
     db_component::DbComponent,
 };
 
+pub enum UpdateOperation {
+    Incremental,
+    Revert,
+}
+
 pub fn find_components(conn: &mut PgConnection) -> Result<Vec<DbComponent>, diesel::result::Error> {
     components::table.load::<DbComponent>(conn)
 }
@@ -103,13 +108,23 @@ pub fn update_and_archive_bom_by_id(
     conn: &mut PgConnection,
     bom_id: Uuid,
     change_events: Vec<BOMChangeEvent>,
+    operation: UpdateOperation,
 ) -> Result<(DbBOM, Vec<DbBOMComponent>, Vec<DbComponent>), anyhow::Error> {
     let db_bom: DbBOM = boms::table.find(bom_id).first(conn)?;
 
     let (bom_components, components) = get_components_of_bom_by_id(conn, bom_id)?;
 
     let db_bom_version: BOMVersion = (&db_bom, &change_events).into();
-    let mut bom: BOM = (db_bom, bom_components, components).try_into()?;
+
+    let mut bom: BOM = match operation {
+        UpdateOperation::Incremental => (db_bom, bom_components, components).try_into()?,
+        UpdateOperation::Revert => {
+            let mut bom: BOM = (db_bom, bom_components, components).try_into()?;
+            bom.clean_for_revert();
+            bom
+        }
+    };
+
     bom.increment_version();
 
     let _ = change_events
@@ -122,6 +137,27 @@ pub fn update_and_archive_bom_by_id(
     let (new_db_bom, new_db_bom_components) = bom.into();
 
     let (updated_bom, updated_bom_components): (DbBOM, Vec<DbBOMComponent>) =
+        perform_update_transaction(
+            conn,
+            bom_id,
+            &new_db_bom,
+            &new_db_bom_components,
+            &db_bom_version,
+        )?;
+
+    let (_, components) = get_components_of_bom_by_id(conn, updated_bom.id)?;
+
+    Ok((updated_bom, updated_bom_components, components))
+}
+
+fn perform_update_transaction(
+    conn: &mut PgConnection,
+    bom_id: Uuid,
+    new_db_bom: &DbBOM,
+    new_db_bom_components: &Vec<DbBOMComponent>,
+    new_bom_version: &BOMVersion,
+) -> Result<(DbBOM, Vec<DbBOMComponent>), anyhow::Error> {
+    let (updated_bom, updated_bom_components): (DbBOM, Vec<DbBOMComponent>) =
         conn.build_transaction().run(|conn| {
             let updated_bom: DbBOM = diesel::update(boms::table.find(bom_id))
                 .set(new_db_bom)
@@ -132,20 +168,17 @@ pub fn update_and_archive_bom_by_id(
 
             let updated_bom_components: Vec<DbBOMComponent> =
                 diesel::insert_into(boms_components::table)
-                    .values(&new_db_bom_components)
+                    .values(new_db_bom_components)
                     .get_results(conn)?;
 
             let _ = diesel::insert_into(bom_versions::table)
-                .values(db_bom_version)
+                .values(new_bom_version)
                 .execute(conn)
                 .map_err(|e| anyhow!(e))?;
 
             Ok::<(DbBOM, Vec<DbBOMComponent>), anyhow::Error>((updated_bom, updated_bom_components))
         })?;
-
-    let (_, components) = get_components_of_bom_by_id(conn, updated_bom.id)?;
-
-    Ok((updated_bom, updated_bom_components, components))
+    Ok((updated_bom, updated_bom_components))
 }
 
 pub fn fetch_change_events_until_version(

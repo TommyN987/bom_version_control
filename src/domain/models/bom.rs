@@ -63,7 +63,7 @@ impl BOM {
         validator.validate(event)?;
         match event {
             BOMChangeEvent::NameChanged(name) => {
-                self.name = name.clone();
+                self.name.clone_from(name);
             }
             BOMChangeEvent::DescriptionChanged(description) => {
                 self.description = Some(description.clone());
@@ -87,6 +87,10 @@ impl BOM {
 
     pub fn increment_version(&mut self) {
         self.version += 1;
+    }
+
+    pub fn clean_for_revert(&mut self) {
+        self.components.clear();
     }
 }
 
