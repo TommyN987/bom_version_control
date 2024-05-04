@@ -90,19 +90,19 @@ mod tests {
 
     #[test]
     fn test_is_valid_string() {
-        assert_eq!(is_valid_string("valid string"), true);
-        assert_eq!(is_valid_string("invalid string/"), false);
-        assert_eq!(is_valid_string("invalid string("), false);
-        assert_eq!(is_valid_string("invalid string)"), false);
-        assert_eq!(is_valid_string("invalid string\""), false);
-        assert_eq!(is_valid_string("invalid string<"), false);
-        assert_eq!(is_valid_string("invalid string>"), false);
-        assert_eq!(is_valid_string("invalid string\\"), false);
-        assert_eq!(is_valid_string("invalid string{"), false);
-        assert_eq!(is_valid_string("invalid string}"), false);
-        assert_eq!(is_valid_string("iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii"), false);
-        assert_eq!(is_valid_string(" "), false);
-        assert_eq!(is_valid_string(""), false);
+        assert!(is_valid_string("valid string"));
+        assert!(!is_valid_string("invalid string/"));
+        assert!(!is_valid_string("invalid string("));
+        assert!(!is_valid_string("invalid string)"));
+        assert!(!is_valid_string("invalid string\""));
+        assert!(!is_valid_string("invalid string<"));
+        assert!(!is_valid_string("invalid string>"));
+        assert!(!is_valid_string("invalid string\\"));
+        assert!(!is_valid_string("invalid string{"));
+        assert!(!is_valid_string("invalid string}"));
+        assert!(!is_valid_string("iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii"));
+        assert!(!is_valid_string(" "));
+        assert!(!is_valid_string(""));
     }
 
     #[test]
