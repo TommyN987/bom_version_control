@@ -7,7 +7,8 @@ use crate::{
     db::DbPool,
     routes::{
         create_bom, create_component, get_all_boms, get_bom_by_id, get_bom_diff, get_bom_version,
-        get_component_by_id, get_components, health_check, revert_bom_to_version, update_bom,
+        get_component_by_id, get_components, health_check, revert_bom_to_version,
+        search_components, update_bom,
     },
 };
 
@@ -17,6 +18,7 @@ pub fn run(listener: TcpListener, pool: DbPool) -> Result<Server, std::io::Error
             .wrap(TracingLogger::default())
             .service(health_check)
             .service(get_all_boms)
+            .service(search_components)
             .service(get_component_by_id)
             .service(get_components)
             .service(create_component)

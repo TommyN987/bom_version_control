@@ -11,3 +11,9 @@ CREATE TABLE components (
     price_value REAL NOT NULL,
     price_currency VARCHAR NOT NULL
 );
+
+CREATE INDEX components_full_text_idx
+ON components
+USING GIN(
+    to_tsvector('english', coalesce(name, '') || ' ' || coalesce(part_number, '') || ' ' || coalesce(description, '') || ' ' || coalesce(supplier, ''))
+);

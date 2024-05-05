@@ -1,5 +1,6 @@
 use diesel::{
     associations::Identifiable,
+    deserialize::QueryableByName,
     prelude::{Insertable, Queryable},
     Selectable,
 };
@@ -12,7 +13,15 @@ use crate::{
 };
 
 #[derive(
-    Debug, PartialEq, Serialize, Deserialize, Identifiable, Selectable, Insertable, Queryable,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    Identifiable,
+    Selectable,
+    Insertable,
+    Queryable,
+    QueryableByName,
 )]
 #[diesel(table_name = components)]
 pub struct DbComponent {

@@ -95,6 +95,26 @@ pub async fn get_component_by_id(
     Ok(HttpResponse::Ok().json(component))
 }
 
+#[derive(Debug, Deserialize)]
+struct SearchQuery {
+    q: String,
+}
+
+#[tracing::instrument(name = "Searching for components", skip(pool), fields(request_id = %Uuid::new_v4(), query = %query.q))]
+#[get("/components/search")]
+pub async fn search_components(
+    pool: web::Data<DbPool>,
+    query: web::Query<SearchQuery>,
+) -> Result<HttpResponse, ApiError> {
+    let mut conn = pool.get().map_err(|e| anyhow!(e))?;
+    let db_components: Vec<DbComponent> = actix_web::web::block(move || {
+        crate::db::operations::search_components(&mut conn, &query.q)
+    })
+    .await??;
+    let components: Vec<Component> = db_components.into_iter().map(|c| c.into()).collect();
+    Ok(HttpResponse::Ok().json(components))
+}
+
 #[tracing::instrument(name = "Creating a component", skip(pool), fields(request_id = %Uuid::new_v4(), name = %component.name, part_number = %component.part_number, supplier = %component.supplier, price = %component.price.value, currency = %component.price.currency))]
 #[post("/components")]
 pub async fn create_component(

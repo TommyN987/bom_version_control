@@ -53,6 +53,38 @@ async fn get_component_by_id_returns_not_found_for_nonexistent_component() {
 }
 
 #[tokio::test]
+async fn search_components_returns_correct_components() {
+    // Arrange
+    let app = spawn_app().await;
+    let client = Client::new();
+
+    let added_component_1 = app
+        .post_component("Comp1".to_string(), "12345678".to_string())
+        .await;
+    let added_component_2 = app
+        .post_component("Comp2".to_string(), "12345678".to_string())
+        .await;
+    let _ = app
+        .post_component("Comp3".to_string(), "1234567".to_string())
+        .await;
+
+    // Act
+    let search_result: Vec<Component> = client
+        .get(&format!("{}/components/search?q=12345678", &app.addr))
+        .send()
+        .await
+        .expect("Failed to execute request")
+        .json()
+        .await
+        .expect("Failed to parse response");
+
+    // Assert
+    assert_eq!(search_result.len(), 2);
+    assert!(search_result.contains(&added_component_1));
+    assert!(search_result.contains(&added_component_2));
+}
+
+#[tokio::test]
 async fn create_component_persists_component() {
     // Arrange
     let app = spawn_app().await;

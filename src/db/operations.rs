@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use diesel::prelude::*;
+use diesel::{prelude::*, sql_query};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -50,6 +50,21 @@ pub fn insert_component(
     diesel::insert_into(components::table)
         .values(&new_component)
         .get_result(conn)
+}
+
+pub fn search_components(
+    conn: &mut PgConnection,
+    query_string: &str,
+) -> Result<Vec<DbComponent>, diesel::result::Error> {
+    let sql = format!(
+        "SELECT *
+        FROM components
+        WHERE to_tsvector('english', coalesce(name, '') || ' ' || coalesce(part_number, '') || ' ' || coalesce(description, '') || ' ' || coalesce(supplier, ''))
+        @@ plainto_tsquery('english', '{}')",
+        query_string.to_lowercase()
+    );
+
+    sql_query(sql).load::<DbComponent>(conn)
 }
 
 pub fn find_boms(conn: &mut PgConnection) -> Result<Vec<DbBOM>, diesel::result::Error> {
