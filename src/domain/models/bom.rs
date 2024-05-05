@@ -123,12 +123,13 @@ mod tests {
     }
 
     fn setup_test_bom() -> BOM {
-        let mut bom = BOM::default();
-        bom.name = "Test BOM".to_string();
-        bom.version = 1;
-        bom.description = Some("Test Description".to_string());
-        bom.components.push((create_test_component(), 1));
-        bom
+        BOM {
+            name: "Test BOM".to_string(),
+            version: 1,
+            description: Some("Test Description".to_string()),
+            components: vec![(create_test_component(), 1)],
+            ..Default::default()
+        }
     }
 
     #[test]

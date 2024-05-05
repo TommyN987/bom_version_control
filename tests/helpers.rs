@@ -63,7 +63,7 @@ impl TestApp {
             .expect("Failed to parse response")
     }
 
-    pub async fn post_bom(&self, components: &Vec<Component>) -> reqwest::Response {
+    pub async fn post_bom(&self, components: &[Component]) -> reqwest::Response {
         let name_change = BOMChangeEvent::NameChanged("TestBom".to_string());
 
         let description_change =
