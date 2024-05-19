@@ -379,6 +379,7 @@ dependencies = [
  "dotenv",
  "mockall",
  "once_cell",
+ "r2d2",
  "rand",
  "reqwest",
  "secrecy",
