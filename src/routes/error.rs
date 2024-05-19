@@ -21,6 +21,12 @@ impl ResponseError for ApiError {
             ApiError::NotFound(_) => actix_web::http::StatusCode::NOT_FOUND,
         }
     }
+
+    fn error_response(&self) -> actix_web::HttpResponse<actix_web::body::BoxBody> {
+        actix_web::HttpResponse::build(self.status_code())
+            .json(serde_json::json!({ "error": self.to_string() }))
+            .into()
+    }
 }
 
 impl From<DieselError> for ApiError {
