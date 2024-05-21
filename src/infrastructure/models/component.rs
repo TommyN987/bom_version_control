@@ -2,23 +2,15 @@ use diesel::{
     associations::Identifiable,
     deserialize::QueryableByName,
     prelude::{Insertable, Queryable},
+    query_builder::AsChangeset,
     Selectable,
 };
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::schema::components;
 
 #[derive(
-    Debug,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Identifiable,
-    Selectable,
-    Insertable,
-    Queryable,
-    QueryableByName,
+    Debug, PartialEq, AsChangeset, Identifiable, Selectable, Insertable, Queryable, QueryableByName,
 )]
 #[diesel(table_name = components)]
 pub struct Component {

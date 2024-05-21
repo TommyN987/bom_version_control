@@ -21,7 +21,7 @@ use crate::schema::bom_versions;
 )]
 #[diesel(belongs_to(Bom))]
 #[diesel(table_name = bom_versions)]
-pub struct BOMVersion {
+pub struct BomVersion {
     pub id: Uuid,
     pub bom_id: Uuid,
     pub version: i32,
