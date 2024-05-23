@@ -1,9 +1,13 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::domain::validation::{BOMChangeEventValidator, ValidationError, Validator};
+use crate::domain::{
+    error::DomainError,
+    newtypes::new_bom::NewBOM,
+    validation::{BOMChangeEventValidator, Validator},
+};
 
-use super::{BOMChangeEvent, Component};
+use super::{BOMChangeEvent, CountedComponent};
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct BOM {
@@ -11,7 +15,7 @@ pub struct BOM {
     pub name: String,
     pub version: i32,
     pub description: Option<String>,
-    pub components: Vec<(Component, i32)>,
+    pub components: Vec<CountedComponent>,
 }
 
 impl Default for BOM {
@@ -26,28 +30,29 @@ impl Default for BOM {
     }
 }
 
-impl TryFrom<&Vec<BOMChangeEvent>> for BOM {
-    type Error = ValidationError;
+impl TryFrom<&NewBOM> for BOM {
+    type Error = DomainError;
 
-    fn try_from(value: &Vec<BOMChangeEvent>) -> Result<Self, Self::Error> {
-        if value.is_empty() {
-            return Err(ValidationError(
+    fn try_from(value: &NewBOM) -> Result<Self, Self::Error> {
+        if value.events.is_empty() {
+            return Err(DomainError::ValidationError(
                 "Unable to construct BOM without input".to_string(),
             ));
         }
 
         // Check if events include a NameChanged event
         if !value
+            .events
             .iter()
             .any(|event| matches!(event, BOMChangeEvent::NameChanged(_)))
         {
-            return Err(ValidationError(
+            return Err(DomainError::ValidationError(
                 "Creating a BOM without name is not allowed. Please provide a name".to_string(),
             ));
         }
 
         let mut bom = BOM::default();
-        for event in value {
+        for event in value.events.iter() {
             bom.apply_change(event, BOMChangeEventValidator)?;
         }
         Ok(bom)
@@ -59,7 +64,7 @@ impl BOM {
         &mut self,
         event: &BOMChangeEvent,
         validator: T,
-    ) -> Result<(), ValidationError> {
+    ) -> Result<(), DomainError> {
         validator.validate(event)?;
         match event {
             BOMChangeEvent::NameChanged(name) => {
@@ -69,15 +74,16 @@ impl BOM {
                 self.description = Some(description.clone());
             }
             BOMChangeEvent::ComponentAdded(component, qty) => {
-                self.components.push((component.clone(), *qty));
+                self.components
+                    .push(CountedComponent::new(component.clone(), *qty));
             }
             BOMChangeEvent::ComponentRemoved(component) => {
-                self.components.retain(|(c, _)| c.id != component.id);
+                self.components.retain(|cc| cc.component.id != component.id);
             }
             BOMChangeEvent::ComponentUpdated(id, qty) => {
-                self.components.iter_mut().for_each(|(c, q)| {
-                    if c.id == *id {
-                        *q = *qty;
+                self.components.iter_mut().for_each(|cc| {
+                    if cc.component.id == *id {
+                        cc.quantity = *qty;
                     }
                 });
             }
@@ -99,12 +105,12 @@ mod tests {
     use mockall::{mock, predicate::*};
 
     use super::*;
-    use crate::domain::{BOMChangeEvent, Component, Price};
+    use crate::domain::{newtypes::new_bom, BOMChangeEvent, Component, Price};
 
     mock! {
         pub BOMChangeEventValidator {}
         impl Validator<BOMChangeEvent> for BOMChangeEventValidator {
-            fn validate(&self, event: &BOMChangeEvent) -> Result<(), ValidationError>;
+            fn validate(&self, event: &BOMChangeEvent) -> Result<(), DomainError>;
         }
     }
 
@@ -127,7 +133,7 @@ mod tests {
             name: "Test BOM".to_string(),
             version: 1,
             description: Some("Test Description".to_string()),
-            components: vec![(create_test_component(), 1)],
+            components: vec![CountedComponent::new(create_test_component(), 1)],
             ..Default::default()
         }
     }
@@ -153,10 +159,11 @@ mod tests {
         let mut bom = setup_test_bom();
         let mut mock_validator = MockBOMChangeEventValidator::new();
 
-        mock_validator
-            .expect_validate()
-            .times(1)
-            .returning(|_| Err(ValidationError("Invalid name input".to_string())));
+        mock_validator.expect_validate().times(1).returning(|_| {
+            Err(DomainError::ValidationError(
+                "Invalid name input".to_string(),
+            ))
+        });
 
         let event = BOMChangeEvent::NameChanged("".to_string());
         let _ = bom.apply_change(&event, mock_validator);
@@ -185,10 +192,11 @@ mod tests {
         let mut bom = setup_test_bom();
         let mut mock_validator = MockBOMChangeEventValidator::new();
 
-        mock_validator
-            .expect_validate()
-            .times(1)
-            .returning(|_| Err(ValidationError("Invalid description input".to_string())));
+        mock_validator.expect_validate().times(1).returning(|_| {
+            Err(DomainError::ValidationError(
+                "Invalid description input".to_string(),
+            ))
+        });
 
         let event = BOMChangeEvent::DescriptionChanged("New Description".to_string());
         let _ = bom.apply_change(&event, mock_validator);
@@ -211,8 +219,8 @@ mod tests {
         let _ = bom.apply_change(&event, mock_validator);
 
         assert_eq!(bom.components.len(), 2);
-        assert_eq!(bom.components[1].0, component);
-        assert_eq!(bom.components[1].1, 1);
+        assert_eq!(bom.components[1].component, component);
+        assert_eq!(bom.components[1].quantity, 1);
     }
 
     #[test]
@@ -220,10 +228,11 @@ mod tests {
         let mut bom = setup_test_bom();
         let mut mock_validator = MockBOMChangeEventValidator::new();
 
-        mock_validator
-            .expect_validate()
-            .times(1)
-            .returning(|_| Err(ValidationError("Invalid quantity input".to_string())));
+        mock_validator.expect_validate().times(1).returning(|_| {
+            Err(DomainError::ValidationError(
+                "Invalid quantity input".to_string(),
+            ))
+        });
 
         let component = create_test_component();
         let event = BOMChangeEvent::ComponentAdded(component.clone(), 0);
@@ -237,7 +246,7 @@ mod tests {
         let mut bom = setup_test_bom();
         let mut mock_validator = MockBOMChangeEventValidator::new();
 
-        let component = bom.components[0].0.clone();
+        let component = bom.components[0].component.clone();
 
         mock_validator
             .expect_validate()
@@ -255,7 +264,7 @@ mod tests {
         let mut bom = setup_test_bom();
         let mut mock_validator = MockBOMChangeEventValidator::new();
 
-        let component = bom.components[0].0.clone();
+        let component = bom.components[0].component.clone();
 
         mock_validator
             .expect_validate()
@@ -265,7 +274,7 @@ mod tests {
         let event = BOMChangeEvent::ComponentUpdated(component.id, 2);
         let _ = bom.apply_change(&event, mock_validator);
 
-        assert_eq!(bom.components[0].1, 2);
+        assert_eq!(bom.components[0].quantity, 2);
     }
 
     #[test]
@@ -273,17 +282,18 @@ mod tests {
         let mut bom = setup_test_bom();
         let mut mock_validator = MockBOMChangeEventValidator::new();
 
-        let component = bom.components[0].0.clone();
+        let component = bom.components[0].component.clone();
 
-        mock_validator
-            .expect_validate()
-            .times(1)
-            .returning(|_| Err(ValidationError("Invalid quantity input".to_string())));
+        mock_validator.expect_validate().times(1).returning(|_| {
+            Err(DomainError::ValidationError(
+                "Invalid quantity input".to_string(),
+            ))
+        });
 
         let event = BOMChangeEvent::ComponentUpdated(component.id, 0);
         let _ = bom.apply_change(&event, mock_validator);
 
-        assert_eq!(bom.components[0].1, 1);
+        assert_eq!(bom.components[0].quantity, 1);
     }
 
     #[test]
@@ -295,25 +305,29 @@ mod tests {
             BOMChangeEvent::ComponentAdded(component.clone(), 1),
         ];
 
-        let bom = BOM::try_from(&events).unwrap();
+        let new_bom = new_bom::NewBOM { events };
+
+        let bom = BOM::try_from(&new_bom).unwrap();
 
         assert_eq!(bom.name, "Test BOM");
         assert_eq!(bom.description, Some("Test Description".to_string()));
         assert_eq!(bom.components.len(), 1);
-        assert_eq!(bom.components[0].0, component);
-        assert_eq!(bom.components[0].1, 1);
+        assert_eq!(bom.components[0].component, component);
+        assert_eq!(bom.components[0].quantity, 1);
     }
 
     #[test]
     fn test_try_from_bom_with_empty_events() {
         let events = vec![];
 
-        let result = BOM::try_from(&events);
+        let new_bom = new_bom::NewBOM { events };
+
+        let result = BOM::try_from(&new_bom);
 
         assert!(result.is_err());
         assert_eq!(
-            result.err().unwrap().0,
-            "Unable to construct BOM without input"
+            result.err().unwrap(),
+            DomainError::ValidationError("Unable to construct BOM without input".to_string())
         );
     }
 
@@ -325,12 +339,16 @@ mod tests {
             BOMChangeEvent::ComponentAdded(component.clone(), 1),
         ];
 
-        let result = BOM::try_from(&events);
+        let new_bom = new_bom::NewBOM { events };
+
+        let result = BOM::try_from(&new_bom);
 
         assert!(result.is_err());
         assert_eq!(
-            result.err().unwrap().0,
-            "Creating a BOM without name is not allowed. Please provide a name"
+            result.err().unwrap(),
+            DomainError::ValidationError(
+                "Creating a BOM without name is not allowed. Please provide a name".to_string()
+            )
         );
     }
 
@@ -339,24 +357,26 @@ mod tests {
         let components: Vec<(Component, i32)> =
             (1..=5).map(|i| (create_test_component(), i)).collect();
 
-        let events = vec![
-            BOMChangeEvent::NameChanged("Test BOM".to_string()),
-            BOMChangeEvent::DescriptionChanged("Test Description".to_string()),
-        ]
-        .into_iter()
-        .chain(
-            components
-                .iter()
-                .map(|(c, q)| BOMChangeEvent::ComponentAdded(c.clone(), *q)),
-        )
-        .collect();
+        let new_bom = NewBOM {
+            events: vec![
+                BOMChangeEvent::NameChanged("Test BOM".to_string()),
+                BOMChangeEvent::DescriptionChanged("Test Description".to_string()),
+            ]
+            .into_iter()
+            .chain(
+                components
+                    .iter()
+                    .map(|(c, q)| BOMChangeEvent::ComponentAdded(c.clone(), *q)),
+            )
+            .collect(),
+        };
 
-        let bom = BOM::try_from(&events).unwrap();
+        let bom = BOM::try_from(&new_bom).unwrap();
 
         assert_eq!(bom.components.len(), 5);
-        for (i, (component, qty)) in bom.components.iter().enumerate() {
-            assert_eq!(qty, &(i as i32 + 1));
-            assert_eq!(component, &components[i].0);
+        for (i, counted_component) in bom.components.iter().enumerate() {
+            assert_eq!(counted_component.quantity, (i as i32 + 1));
+            assert_eq!(counted_component.component, components[i].0);
         }
     }
 }

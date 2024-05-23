@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{BOMChangeEvent, BOMChangeEventVisitor, Component, BOM};
+use super::{BOMChangeEvent, BOMChangeEventVisitor, Component, CountedComponent, BOM};
 
 #[derive(thiserror::Error, Debug)]
 #[error("Invalid input: {0}")]
-pub struct ConversionError(String);
+pub struct ConversionError(pub String);
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PartialDiff<T> {
@@ -19,9 +19,9 @@ pub struct PartialDiff<T> {
 pub struct BOMDiff {
     pub name_changed: Option<PartialDiff<String>>,
     pub description_changed: Option<PartialDiff<String>>,
-    pub components_added: HashMap<Uuid, (Component, i32)>,
+    pub components_added: HashMap<Uuid, CountedComponent>,
     pub components_removed: Vec<Component>,
-    pub components_updated: HashMap<Uuid, PartialDiff<(Component, i32)>>,
+    pub components_updated: HashMap<Uuid, PartialDiff<CountedComponent>>,
 }
 
 impl From<(&BOM, &Vec<BOMChangeEvent>)> for BOMDiff {
@@ -66,34 +66,38 @@ impl BOMChangeEventVisitor for BOMDiffVisitor {
             diff.components_removed.retain(|c| c.id != component.id);
         }
 
-        if let Some(comp) = bom.components.iter().find(|(c, _)| c.id == component.id) {
+        if let Some(comp) = bom
+            .components
+            .iter()
+            .find(|cc| cc.component.id == component.id)
+        {
             diff.components_updated.insert(
                 component.id,
                 PartialDiff {
                     from: comp.clone(),
-                    to: (component.clone(), qty),
+                    to: CountedComponent::new(component.clone(), qty),
                 },
             );
             return;
         }
 
         diff.components_added
-            .insert(component.id, (component.clone(), qty));
+            .insert(component.id, CountedComponent::new(component.clone(), qty));
     }
 
     fn visit_component_updated(&mut self, id: &Uuid, qty: i32, bom: &BOM, diff: &mut BOMDiff) {
-        if let Some((c, q)) = bom.components.iter().find(|(c, _)| c.id == *id) {
+        if let Some(counted_component) = bom.components.iter().find(|cc| cc.component.id == *id) {
             diff.components_updated.insert(
                 *id,
                 PartialDiff {
-                    from: (c.clone(), *q),
-                    to: (c.clone(), qty),
+                    from: counted_component.clone(),
+                    to: CountedComponent::new(counted_component.component.clone(), qty),
                 },
             );
         }
 
-        if let Some((_, q)) = diff.components_added.get_mut(id) {
-            *q = qty;
+        if let Some(counted_component) = diff.components_added.get_mut(id) {
+            counted_component.quantity = qty;
         }
     }
 
@@ -143,7 +147,7 @@ mod tests {
             name: "Test BOM".to_string(),
             version: 1,
             description: Some("Test description".to_string()),
-            components: vec![(component_1.clone(), 1)],
+            components: vec![CountedComponent::new(component_1.clone(), 1)],
         };
 
         (bom, component_1, component_2)
@@ -196,7 +200,7 @@ mod tests {
 
         assert_eq!(
             diff.components_added.get(&component_2.id),
-            Some(&(component_2.clone(), 2))
+            Some(&CountedComponent::new(component_2.clone(), 2))
         );
     }
 
@@ -226,12 +230,12 @@ mod tests {
 
         assert_eq!(
             diff.components_added.get(&component_2.id),
-            Some(&(component_2.clone(), 2))
+            Some(&CountedComponent::new(component_2.clone(), 2))
         );
 
         assert_eq!(
             diff.components_added.get(&component_3.id),
-            Some(&(component_3.clone(), 3))
+            Some(&CountedComponent::new(component_3.clone(), 3))
         );
     }
 
@@ -247,8 +251,8 @@ mod tests {
         assert_eq!(
             diff.components_updated.get(&component_1.id),
             Some(&PartialDiff {
-                from: (component_1.clone(), 1),
-                to: (component_1.clone(), 2)
+                from: CountedComponent::new(component_1.clone(), 1),
+                to: CountedComponent::new(component_1.clone(), 2)
             })
         );
     }
@@ -257,7 +261,8 @@ mod tests {
     fn test_multiple_components_updated() {
         let (mut bom, component_1, component_2) = setup_test_bom_and_components();
 
-        bom.components.push((component_2.clone(), 1));
+        bom.components
+            .push(CountedComponent::new(component_2.clone(), 1));
 
         let diff = BOMDiff::from((
             &bom,
@@ -270,16 +275,16 @@ mod tests {
         assert_eq!(
             diff.components_updated.get(&component_1.id),
             Some(&PartialDiff {
-                from: (component_1.clone(), 1),
-                to: (component_1.clone(), 2)
+                from: CountedComponent::new(component_1.clone(), 1),
+                to: CountedComponent::new(component_1.clone(), 2)
             })
         );
 
         assert_eq!(
             diff.components_updated.get(&component_2.id),
             Some(&PartialDiff {
-                from: (component_2.clone(), 1),
-                to: (component_2.clone(), 3)
+                from: CountedComponent::new(component_2.clone(), 1),
+                to: CountedComponent::new(component_2.clone(), 3)
             })
         );
     }
@@ -310,7 +315,7 @@ mod tests {
 
         assert_eq!(
             diff.components_added.get(&component_2.id),
-            Some(&(component_2.clone(), 3))
+            Some(&CountedComponent::new(component_2.clone(), 3))
         );
     }
 
@@ -363,8 +368,8 @@ mod tests {
         assert_eq!(
             diff.components_updated.get(&component_1.id),
             Some(&PartialDiff {
-                from: (component_1.clone(), 1),
-                to: (component_1.clone(), 2)
+                from: CountedComponent::new(component_1.clone(), 1),
+                to: CountedComponent::new(component_1.clone(), 2)
             })
         );
     }
@@ -384,7 +389,7 @@ mod tests {
 
         assert_eq!(
             diff.components_added.get(&component_2.id),
-            Some(&(component_2.clone(), 3))
+            Some(&CountedComponent::new(component_2.clone(), 3))
         );
 
         assert!(diff.components_removed.is_empty());
@@ -438,12 +443,12 @@ mod tests {
 
         assert_eq!(
             diff.components_added.get(&component_2.id),
-            Some(&(component_2.clone(), 3))
+            Some(&CountedComponent::new(component_2.clone(), 3))
         );
 
         assert_eq!(
             diff.components_added.get(&component_3.id),
-            Some(&(component_3.clone(), 3))
+            Some(&CountedComponent::new(component_3.clone(), 3))
         );
 
         assert!(diff.components_updated.is_empty());

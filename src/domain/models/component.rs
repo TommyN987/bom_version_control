@@ -16,3 +16,18 @@ pub struct Component {
     pub supplier: String,
     pub price: Price,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CountedComponent {
+    pub component: Component,
+    pub quantity: i32,
+}
+
+impl CountedComponent {
+    pub fn new(component: Component, quantity: i32) -> Self {
+        Self {
+            component,
+            quantity,
+        }
+    }
+}

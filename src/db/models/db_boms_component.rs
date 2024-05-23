@@ -50,7 +50,7 @@ impl Into<(Bom, Vec<DbBOMComponent>)> for BOM {
         let db_bom_components: Vec<DbBOMComponent> = self
             .components
             .into_iter()
-            .map(|(c, q)| DbBOMComponent::new(db_bom.id, c.id, q))
+            .map(|cc| DbBOMComponent::new(db_bom.id, cc.component.id, cc.quantity))
             .collect();
 
         (db_bom, db_bom_components)
