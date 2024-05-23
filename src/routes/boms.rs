@@ -1,12 +1,9 @@
-use std::{
-    fmt::{self, Display, Formatter},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use actix_web::{get, post, put, web, HttpResponse};
 use anyhow::anyhow;
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -19,27 +16,16 @@ use crate::{
         },
         DbPool,
     },
-    domain::{BOMChangeEvent, BOMDiff, BOM},
+    domain::{newtypes::new_bom::NewBOM, BOMChangeEvent, BOMDiff, BOM},
 };
 
 use super::ApiError;
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct NewBOM {
-    pub events: Vec<BOMChangeEvent>,
-}
-
-impl Display for NewBOM {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.events)
-    }
-}
 
 impl TryFrom<&NewBOM> for DbBOM {
     type Error = ApiError;
 
     fn try_from(value: &NewBOM) -> Result<Self, Self::Error> {
-        let bom = BOM::try_from(&value.events)?;
+        let bom = BOM::try_from(value)?;
         if bom.name.is_empty() {
             return Err(ApiError::BadRequest("Name is required".to_string()));
         }
@@ -209,7 +195,7 @@ pub async fn get_bom_diff(
         }
     }
 
-    let initial_bom = BOM::try_from(&events_until_starting_bom)?;
+    let initial_bom = BOM::try_from(&NewBOM::new(events_until_starting_bom))?;
 
     let diff = BOMDiff::from((&initial_bom, &events_until_ending_bom));
 
@@ -274,7 +260,7 @@ async fn get_bom_by_version(pool: Arc<DbPool>, id: Uuid, version: i32) -> Result
     let (events_until_version, version_number) =
         get_bom_change_events_until_version(pool.clone(), id, version).await?;
 
-    let mut bom = BOM::try_from(&events_until_version)?;
+    let mut bom = BOM::try_from(&NewBOM::new(events_until_version))?;
     bom.id = id;
     bom.version = version_number;
 

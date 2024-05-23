@@ -26,10 +26,10 @@ impl BomRepository {
 }
 
 impl Repository for BomRepository {
-    fn find_all(&self) -> Result<Vec<(BOM, Vec<Component>)>, DatabaseError> {
+    fn find_all(&self) -> Result<Vec<(BOM, Vec<(Component, i32)>)>, DatabaseError> {
         let mut conn = self.pool.get()?;
 
-        let mut result: Vec<(BOM, Vec<Component>)> = vec![];
+        let mut result: Vec<(BOM, Vec<(Component, i32)>)> = vec![];
         let boms = self.find_all_boms(&mut conn)?;
 
         for bom in boms {
@@ -40,7 +40,7 @@ impl Repository for BomRepository {
         Ok(result)
     }
 
-    fn find_by_id(&self, bom_id: Uuid) -> Result<(BOM, Vec<Component>), DatabaseError> {
+    fn find_by_id(&self, bom_id: Uuid) -> Result<(BOM, Vec<(Component, i32)>), DatabaseError> {
         let mut conn = self.pool.get()?;
 
         let bom = self.find_bom_by_id(bom_id, &mut conn)?;
@@ -54,14 +54,15 @@ impl Repository for BomRepository {
         new_bom: &BOM,
         new_bom_components: &Vec<BomComponent>,
         new_bom_version: &BomVersion,
-    ) -> Result<(BOM, Vec<BomComponent>), DatabaseError> {
+    ) -> Result<(BOM, Vec<(Component, i32)>), DatabaseError> {
         let mut conn = self.pool.get()?;
         conn.build_transaction().run(|conn| {
             let created_bom = self.insert_bom(new_bom, conn)?;
             let _ = self.insert_bom_version(new_bom_version, conn)?;
-            let created_bom_components = self.insert_bom_components(new_bom_components, conn)?;
+            let _ = self.insert_bom_components(new_bom_components, conn)?;
+            let components = self.find_components_of_bom_by_bom_id(created_bom.id, conn)?;
 
-            Ok((created_bom, created_bom_components))
+            Ok((created_bom, components))
         })
     }
 
@@ -71,7 +72,7 @@ impl Repository for BomRepository {
         updated_bom: &BOM,
         updated_bom_components: &Vec<BomComponent>,
         updated_bom_version: &BomVersion,
-    ) -> Result<(BOM, Vec<Component>), DatabaseError> {
+    ) -> Result<(BOM, Vec<(Component, i32)>), DatabaseError> {
         let mut conn = self.pool.get()?;
 
         conn.build_transaction().run(|conn| {
@@ -97,6 +98,17 @@ impl Repository for BomRepository {
         Ok(components::table
             .find(component_id)
             .first::<Component>(&mut conn)?)
+    }
+
+    fn find_multiple_components_by_id(
+        &self,
+        component_ids: Vec<Uuid>,
+    ) -> Result<Vec<Component>, DatabaseError> {
+        let mut conn = self.pool.get()?;
+
+        Ok(components::table
+            .filter(components::id.eq_any(component_ids))
+            .load::<Component>(&mut conn)?)
     }
 
     fn insert_component(&self, new_component: Component) -> Result<Component, DatabaseError> {
@@ -143,11 +155,11 @@ impl BomRepository {
         &self,
         bom_id: Uuid,
         conn: &mut PgConnection,
-    ) -> Result<Vec<Component>, DatabaseError> {
+    ) -> Result<Vec<(Component, i32)>, DatabaseError> {
         Ok(boms_components::table
             .inner_join(components::table.on(components::id.eq(components::id)))
             .filter(boms_components::bom_id.eq(bom_id))
-            .select(components::all_columns)
+            .select((components::all_columns, boms_components::quantity))
             .load(conn)?)
     }
 

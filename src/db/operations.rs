@@ -4,10 +4,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    domain::{
-        validation::{BOMChangeEventValidator, ValidationError},
-        BOMChangeEvent, BOM,
-    },
+    domain::{error::DomainError, validation::BOMChangeEventValidator, BOMChangeEvent, BOM},
     schema::{bom_versions, boms, boms_components, components},
 };
 
@@ -144,7 +141,7 @@ pub fn update_and_archive_bom_by_id(
 
     let _ = change_events
         .iter()
-        .try_for_each(|event| -> Result<(), ValidationError> {
+        .try_for_each(|event| -> Result<(), DomainError> {
             bom.apply_change(event, BOMChangeEventValidator)?;
             Ok(())
         });

@@ -1,7 +1,8 @@
 use actix_web::{error::BlockingError, ResponseError};
+use anyhow::anyhow;
 use diesel::{r2d2::Error as R2D2Error, result::Error as DieselError};
 
-use crate::domain::validation::ValidationError;
+use crate::domain::error::DomainError;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ApiError {
@@ -50,11 +51,20 @@ impl From<BlockingError> for ApiError {
     }
 }
 
-impl From<ValidationError> for ApiError {
-    fn from(value: ValidationError) -> Self {
-        Self::BadRequest(value.0)
+impl From<DomainError> for ApiError {
+    fn from(value: DomainError) -> Self {
+        match value {
+            DomainError::ValidationError(message) => Self::BadRequest(message),
+            DomainError::ConversionError(message) => Self::Unexpected(anyhow!(message)),
+        }
     }
 }
+
+// impl From<ValidationError> for ApiError {
+//     fn from(value: ValidationError) -> Self {
+//         Self::BadRequest(value.0)
+//     }
+// }
 
 impl From<serde_json::Error> for ApiError {
     fn from(value: serde_json::Error) -> Self {

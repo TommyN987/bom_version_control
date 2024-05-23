@@ -1,46 +1,39 @@
-use std::fmt::Display;
-
 use unicode_segmentation::UnicodeSegmentation;
 
-use super::BOMChangeEvent;
-
-#[derive(thiserror::Error, Debug, PartialEq)]
-pub struct ValidationError(pub String);
-
-impl Display for ValidationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
+use super::{error::DomainError, BOMChangeEvent};
 
 pub trait Validator<T> {
-    fn validate(&self, data: &T) -> Result<(), ValidationError>;
+    fn validate(&self, data: &T) -> Result<(), DomainError>;
 }
 
 pub struct BOMChangeEventValidator;
 
 impl Validator<BOMChangeEvent> for BOMChangeEventValidator {
-    fn validate(&self, event: &BOMChangeEvent) -> Result<(), ValidationError> {
+    fn validate(&self, event: &BOMChangeEvent) -> Result<(), DomainError> {
         match event {
             BOMChangeEvent::NameChanged(name) => {
                 if is_valid_string(name) {
                     Ok(())
                 } else {
-                    Err(ValidationError("Invalid name input".to_string()))
+                    Err(DomainError::ValidationError(
+                        "Invalid name input".to_string(),
+                    ))
                 }
             }
             BOMChangeEvent::DescriptionChanged(description) => {
                 if is_valid_string(description) {
                     Ok(())
                 } else {
-                    Err(ValidationError("Invalid description input".to_string()))
+                    Err(DomainError::ValidationError(
+                        "Invalid description input".to_string(),
+                    ))
                 }
             }
             BOMChangeEvent::ComponentAdded(_, qty) => {
                 if *qty > 0 {
                     Ok(())
                 } else {
-                    Err(ValidationError(
+                    Err(DomainError::ValidationError(
                         "Quantity must be greater than 0".to_string(),
                     ))
                 }
@@ -49,7 +42,7 @@ impl Validator<BOMChangeEvent> for BOMChangeEventValidator {
                 if *qty > 0 {
                     Ok(())
                 } else {
-                    Err(ValidationError(
+                    Err(DomainError::ValidationError(
                         "Quantity must be greater than 0".to_string(),
                     ))
                 }
@@ -117,7 +110,9 @@ mod tests {
         );
         assert_eq!(
             validator.validate(&BOMChangeEvent::NameChanged(invalid_name)),
-            Err(ValidationError("Invalid name input".to_string()))
+            Err(DomainError::ValidationError(
+                "Invalid name input".to_string()
+            ))
         );
     }
 
@@ -133,7 +128,9 @@ mod tests {
         );
         assert_eq!(
             validator.validate(&BOMChangeEvent::DescriptionChanged(invalid_description)),
-            Err(ValidationError("Invalid description input".to_string()))
+            Err(DomainError::ValidationError(
+                "Invalid description input".to_string()
+            ))
         );
     }
 
@@ -159,7 +156,7 @@ mod tests {
 
         assert_eq!(
             validator.validate(&BOMChangeEvent::ComponentAdded(test_component, qty)),
-            Err(ValidationError(
+            Err(DomainError::ValidationError(
                 "Quantity must be greater than 0".to_string()
             ))
         );
@@ -183,7 +180,7 @@ mod tests {
 
         assert_eq!(
             validator.validate(&BOMChangeEvent::ComponentUpdated(Uuid::new_v4(), qty)),
-            Err(ValidationError(
+            Err(DomainError::ValidationError(
                 "Quantity must be greater than 0".to_string()
             ))
         );

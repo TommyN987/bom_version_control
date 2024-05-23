@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    domain::{Component, BOM},
+    domain::{Component, CountedComponent, BOM},
     schema::boms,
 };
 
@@ -79,8 +79,11 @@ impl TryFrom<(DbBOM, Vec<DbBOMComponent>, Vec<DbComponent>)> for BOM {
             version: db_bom.version,
             components: comp_map
                 .into_values()
-                .map(|(comp, qty)| comp.ok_or(anyhow!("Component not found")).map(|c| (c, qty)))
-                .collect::<Result<Vec<(Component, i32)>, _>>()?,
+                .map(|(comp, qty)| {
+                    comp.ok_or(anyhow!("Component not found"))
+                        .map(|c| CountedComponent::new(c, qty))
+                })
+                .collect::<Result<Vec<CountedComponent>, _>>()?,
         })
     }
 }
