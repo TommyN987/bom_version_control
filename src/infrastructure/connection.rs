@@ -4,7 +4,7 @@ use diesel::{
 };
 use dotenv::dotenv;
 
-pub type DbPool = r2d2::Pool<ConnectionManager<PgConnection>>;
+use super::aliases::DbPool;
 
 pub fn create_db_pool(connection_string: &str) -> DbPool {
     dotenv().ok();

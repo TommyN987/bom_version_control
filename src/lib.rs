@@ -1,5 +1,4 @@
 pub mod configuration;
-pub mod db;
 pub mod domain;
 pub mod infrastructure;
 pub mod routes;

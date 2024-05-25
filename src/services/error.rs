@@ -4,6 +4,7 @@ use crate::{domain::error::DomainError, infrastructure::error::DatabaseError};
 pub enum ServiceError {
     DomainError(DomainError),
     DatabaseError(DatabaseError),
+    InvalidData(String),
 }
 
 impl From<DomainError> for ServiceError {

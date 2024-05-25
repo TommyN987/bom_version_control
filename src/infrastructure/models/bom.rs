@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::schema::boms;
 
-#[derive(Debug, PartialEq, Identifiable, Insertable, Queryable, Selectable, AsChangeset)]
+#[derive(Debug, Clone, PartialEq, Identifiable, Insertable, Queryable, Selectable, AsChangeset)]
 #[diesel(table_name = boms)]
 pub struct BOM {
     pub id: Uuid,
