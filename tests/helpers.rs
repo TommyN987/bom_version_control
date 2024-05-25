@@ -80,9 +80,7 @@ impl TestApp {
 
         self.client
             .post(&format!("{}/boms", self.addr))
-            .json(&NewBOM {
-                events: Box::new(events),
-            })
+            .json(&NewBOM { events })
             .send()
             .await
             .expect("Failed to execute create bom request")

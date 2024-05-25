@@ -6,7 +6,7 @@ use crate::domain::BOMChangeEvent;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NewBOM {
-    pub events: Box<Vec<BOMChangeEvent>>,
+    pub events: Vec<BOMChangeEvent>,
 }
 
 impl Display for NewBOM {
@@ -16,7 +16,7 @@ impl Display for NewBOM {
 }
 
 impl NewBOM {
-    pub fn new(events: Box<Vec<BOMChangeEvent>>) -> Self {
+    pub fn new(events: Vec<BOMChangeEvent>) -> Self {
         Self { events }
     }
 }
