@@ -162,8 +162,8 @@ impl BomRepository {
         bom_id: Uuid,
         conn: &mut PgConnection,
     ) -> Result<Vec<(Component, i32)>, DatabaseError> {
-        Ok(boms_components::table
-            .inner_join(components::table.on(components::id.eq(components::id)))
+        Ok(components::table
+            .inner_join(boms_components::table.on(boms_components::component_id.eq(components::id)))
             .filter(boms_components::bom_id.eq(bom_id))
             .select((components::all_columns, boms_components::quantity))
             .load(conn)?)

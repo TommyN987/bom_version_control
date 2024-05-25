@@ -66,7 +66,7 @@ impl BomService {
 
         bom.clean_for_revert();
         if let Some(version) = versions.last() {
-            bom.version = version.version;
+            bom.version = version.version + 1;
         }
 
         for version in versions.iter() {
@@ -84,11 +84,13 @@ impl BomService {
         let new_bom_components = self.transform_counted_components(&bom.id, &bom.components);
 
         let new_bom_version: DbBomVersion =
-            BomVersion::new(&bom.id, bom.version, new_bom.events).try_into()?;
+            BomVersion::new(&bom.id, 0, Box::new(new_bom.events)).try_into()?;
 
         let (bom, components) =
             self.repo
                 .insert(&bom.into(), &new_bom_components, &new_bom_version)?;
+
+        println!("{:?}", components);
 
         Ok(BOM::from((bom, components)))
     }
@@ -160,7 +162,7 @@ impl BomService {
             }
         });
 
-        let starting_bom = BOM::try_from(&NewBOM::new(Box::new(events_until_starting_bom)))?;
+        let starting_bom = BOM::try_from(&NewBOM::new(events_until_starting_bom))?;
 
         let diff = BOMDiff::from((&starting_bom, &events_until_ending_bom));
 

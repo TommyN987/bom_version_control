@@ -2,15 +2,10 @@ mod helpers;
 
 use std::collections::HashMap;
 
-use bom_version_control::{
-    domain::{
-        newtypes::new_bom::NewBOM, BOMChangeEvent, BOMDiff, Component, CountedComponent,
-        PartialDiff, Price, BOM,
-    },
-    infrastructure::models::bom_version::BomVersion,
-    schema::bom_versions,
+use bom_version_control::domain::{
+    newtypes::new_bom::NewBOM, BOMChangeEvent, BOMDiff, Component, CountedComponent, PartialDiff,
+    Price, BOM,
 };
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use uuid::Uuid;
 
 use crate::helpers::spawn_app;
@@ -55,7 +50,7 @@ async fn create_bom_returns_bad_request() {
         .client
         .post(&format!("{}/boms", &app.addr))
         .json(&NewBOM {
-            events: Box::new(vec![event]),
+            events: vec![event],
         })
         .send()
         .await
@@ -177,49 +172,46 @@ async fn update_bom_returns_created() {
     assert_eq!(response.status().as_u16(), 201);
 }
 
-// #[tokio::test]
-// async fn update_bom_archives_old_bom() {
-//     // Arrange
-//     let app = spawn_app().await;
+#[tokio::test]
+async fn update_bom_archives_old_bom() {
+    // Arrange
+    let app = spawn_app().await;
 
-//     let comp: Component = app
-//         .post_component("name".to_string(), "part_number".to_string())
-//         .await;
+    let comp: Component = app
+        .post_component("name".to_string(), "part_number".to_string())
+        .await;
 
-//     let added_bom = app
-//         .post_bom(&vec![comp.clone()])
-//         .await
-//         .json::<BOM>()
-//         .await
-//         .expect("Failed to parse response");
+    let added_bom = app
+        .post_bom(&vec![comp.clone()])
+        .await
+        .json::<BOM>()
+        .await
+        .expect("Failed to parse response");
 
-//     // Act
-//     app.client
-//         .put(&format!("{}/boms/{}", &app.addr, added_bom.id))
-//         .json(&vec![
-//             BOMChangeEvent::ComponentUpdated(comp.id, 2),
-//             BOMChangeEvent::NameChanged("UpdatedName".to_string()),
-//         ])
-//         .send()
-//         .await
-//         .expect("Failed to execute update bom request");
+    // Act
+    app.client
+        .put(&format!("{}/boms/{}", &app.addr, added_bom.id))
+        .json(&vec![
+            BOMChangeEvent::ComponentUpdated(comp.id, 2),
+            BOMChangeEvent::NameChanged("UpdatedName".to_string()),
+        ])
+        .send()
+        .await
+        .expect("Failed to execute update bom request");
 
-//     let old_boms: Vec<BomVersion> = bom_versions::table
-//         .filter(bom_versions::bom_id.eq(added_bom.id))
-//         .load::<BomVersion>(&mut app.pool.get().unwrap())
-//         .expect("Failed to get old bom");
+    let old_bom: BOM = app
+        .bom_service
+        .find_bom_by_version_and_id(added_bom.id, 1)
+        .expect("Failed to find bom by version and id");
 
-//     let expected_version = 1;
-//     let expected_bom_id = added_bom.id;
-//     let expected_change_events = serde_json::json!(vec![
-//         BOMChangeEvent::ComponentUpdated(comp.id, 2),
-//         BOMChangeEvent::NameChanged("UpdatedName".to_string())
-//     ]);
-//     // Assert
-//     assert_eq!(old_boms.last().unwrap().bom_id, expected_bom_id);
-//     assert_eq!(old_boms.last().unwrap().version, expected_version);
-//     assert_eq!(old_boms.last().unwrap().changes, expected_change_events);
-// }
+    let expected_version = 1;
+    let expected_bom_id = added_bom.id;
+
+    // Assert
+    assert_eq!(old_bom.id, expected_bom_id);
+    assert_eq!(old_bom.version, expected_version);
+    assert_eq!(old_bom.components, vec![CountedComponent::new(comp, 1)]);
+}
 
 #[tokio::test]
 async fn get_bom_diff_returns_with_invalid_version_range_bad_request() {

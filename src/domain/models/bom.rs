@@ -22,7 +22,7 @@ impl Default for BOM {
         Self {
             id: Uuid::new_v4(),
             name: String::new(),
-            version: 0,
+            version: 1,
             description: None,
             components: Vec::new(),
             created_at: Utc::now(),
@@ -275,11 +275,11 @@ mod tests {
     #[test]
     fn test_try_from_bom() {
         let component = create_test_component();
-        let events = Box::new(vec![
+        let events = vec![
             BOMChangeEvent::NameChanged("Test BOM".to_string()),
             BOMChangeEvent::DescriptionChanged("Test Description".to_string()),
             BOMChangeEvent::ComponentAdded(component.clone(), 1),
-        ]);
+        ];
 
         let new_bom = new_bom::NewBOM { events };
 
@@ -294,7 +294,7 @@ mod tests {
 
     #[test]
     fn test_try_from_bom_with_empty_events() {
-        let events = Box::new(vec![]);
+        let events = vec![];
 
         let new_bom = new_bom::NewBOM { events };
 
@@ -310,10 +310,10 @@ mod tests {
     #[test]
     fn test_try_from_bom_without_name_changed_event() {
         let component = create_test_component();
-        let events = Box::new(vec![
+        let events = vec![
             BOMChangeEvent::DescriptionChanged("Test Description".to_string()),
             BOMChangeEvent::ComponentAdded(component.clone(), 1),
-        ]);
+        ];
 
         let new_bom = new_bom::NewBOM { events };
 
@@ -345,9 +345,7 @@ mod tests {
         )
         .collect();
 
-        let new_bom = NewBOM {
-            events: Box::new(events),
-        };
+        let new_bom = NewBOM { events: events };
 
         let bom = BOM::try_from(&new_bom).unwrap();
 
