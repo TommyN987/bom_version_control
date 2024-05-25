@@ -1,17 +1,24 @@
 use actix_web::{error::BlockingError, ResponseError};
-use anyhow::anyhow;
-use diesel::{r2d2::Error as R2D2Error, result::Error as DieselError};
+use diesel::result::Error as DieselError;
 
-use crate::domain::error::DomainError;
+use crate::{
+    domain::error::DomainError, infrastructure::error::DatabaseError, services::error::ServiceError,
+};
 
 #[derive(thiserror::Error, Debug)]
 pub enum ApiError {
-    #[error(transparent)]
-    Unexpected(#[from] anyhow::Error),
+    #[error("Internal Server Error: {0}")]
+    Unexpected(String),
     #[error("Bad Request: {0}")]
     BadRequest(String),
     #[error("Not Found: {0}")]
     NotFound(String),
+}
+
+impl From<BlockingError> for ApiError {
+    fn from(_: BlockingError) -> Self {
+        Self::Unexpected("Blocking operation was cancelled".to_string())
+    }
 }
 
 impl ResponseError for ApiError {
@@ -26,48 +33,24 @@ impl ResponseError for ApiError {
     fn error_response(&self) -> actix_web::HttpResponse<actix_web::body::BoxBody> {
         actix_web::HttpResponse::build(self.status_code())
             .json(serde_json::json!({ "error": self.to_string() }))
-            .into()
     }
 }
 
-impl From<DieselError> for ApiError {
-    fn from(value: DieselError) -> Self {
+impl From<ServiceError> for ApiError {
+    fn from(value: ServiceError) -> Self {
         match value {
-            DieselError::NotFound => Self::NotFound("Resource not found".into()),
-            _ => Self::Unexpected(value.into()),
+            ServiceError::DomainError(error) => match error {
+                DomainError::ValidationError(message) => Self::BadRequest(message),
+                DomainError::ConversionError(message) => Self::Unexpected(message),
+            },
+            ServiceError::DatabaseError(error) => match error {
+                DatabaseError::DieselError(error) => match error {
+                    DieselError::NotFound => Self::NotFound("Resource not found".into()),
+                    _ => Self::Unexpected(error.to_string()),
+                },
+                DatabaseError::R2D2Error(error) => Self::Unexpected(error.to_string()),
+            },
+            ServiceError::InvalidData(message) => Self::BadRequest(message),
         }
-    }
-}
-
-impl From<R2D2Error> for ApiError {
-    fn from(value: R2D2Error) -> Self {
-        Self::Unexpected(value.into())
-    }
-}
-
-impl From<BlockingError> for ApiError {
-    fn from(value: BlockingError) -> Self {
-        Self::Unexpected(value.into())
-    }
-}
-
-impl From<DomainError> for ApiError {
-    fn from(value: DomainError) -> Self {
-        match value {
-            DomainError::ValidationError(message) => Self::BadRequest(message),
-            DomainError::ConversionError(message) => Self::Unexpected(anyhow!(message)),
-        }
-    }
-}
-
-// impl From<ValidationError> for ApiError {
-//     fn from(value: ValidationError) -> Self {
-//         Self::BadRequest(value.0)
-//     }
-// }
-
-impl From<serde_json::Error> for ApiError {
-    fn from(value: serde_json::Error) -> Self {
-        Self::Unexpected(value.into())
     }
 }

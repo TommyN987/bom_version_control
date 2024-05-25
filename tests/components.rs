@@ -1,10 +1,7 @@
 mod helpers;
 
 use crate::helpers::spawn_app;
-use bom_version_control::{
-    domain::{Component, Price},
-    routes::NewComponent,
-};
+use bom_version_control::domain::{newtypes::new_component::NewComponent, Component, Price};
 use reqwest::Client;
 
 #[tokio::test]

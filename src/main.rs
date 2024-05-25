@@ -1,9 +1,13 @@
-use std::net::TcpListener;
+use std::{net::TcpListener, sync::Arc};
 
 use bom_version_control::{
     configuration::get_config,
-    db::{create_db_pool, models::db_component::DbComponent, DbPool},
+    infrastructure::{
+        aliases::DbPool, connection::create_db_pool, models::component::Component as DbComponent,
+        repositories::bom_repository::BomRepository,
+    },
     schema::components,
+    services::bom_service::BomService,
     startup::run,
     telemetry::{get_subscriber, init_subscriber},
 };
@@ -23,10 +27,16 @@ async fn main() -> Result<(), std::io::Error> {
         eprintln!("Failed to populate components table: {}", e);
     }
 
+    let repo = BomRepository::new(pool.clone());
+
+    let bom_service = Arc::new(BomService::new(Arc::new(repo)));
+
     let addr = format!("{}:{}", config.app.host, config.app.port);
     println!("Server is running on: http://{}", addr);
     let listener = TcpListener::bind(addr).expect("Failed to bind to port");
-    run(listener, pool)?.await?;
+
+    run(listener, bom_service)?.await?;
+
     Ok(())
 }
 

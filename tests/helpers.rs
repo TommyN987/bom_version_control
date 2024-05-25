@@ -1,10 +1,13 @@
-use std::{error::Error, net::TcpListener};
+use std::{error::Error, net::TcpListener, sync::Arc};
 
 use bom_version_control::{
     configuration::get_config,
-    db::DbPool,
-    domain::{BOMChangeEvent, Component, Price},
-    routes::{NewBOM, NewComponent},
+    domain::{
+        newtypes::{new_bom::NewBOM, new_component::NewComponent},
+        BOMChangeEvent, Component, Price,
+    },
+    infrastructure::{aliases::DbPool, repositories::bom_repository::BomRepository},
+    services::bom_service::BomService,
     startup::run,
     telemetry::{get_subscriber, init_subscriber},
 };
@@ -36,7 +39,7 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 
 pub struct TestApp {
     pub addr: String,
-    pub pool: DbPool,
+    pub bom_service: Arc<BomService>,
     pub client: reqwest::Client,
 }
 
@@ -77,7 +80,9 @@ impl TestApp {
 
         self.client
             .post(&format!("{}/boms", self.addr))
-            .json(&NewBOM { events })
+            .json(&NewBOM {
+                events: Box::new(events),
+            })
             .send()
             .await
             .expect("Failed to execute create bom request")
@@ -101,16 +106,20 @@ pub async fn spawn_app() -> TestApp {
 
     let pool = create_testing_pool(config.db.conn_string_without_db().expose_secret());
 
+    let repo = BomRepository::new(pool.clone());
+
+    let bom_service = Arc::new(BomService::new(Arc::new(repo)));
+
     run_migrations(&mut pool.get().expect("Failed to get connection to db"))
         .expect("Failed to run migrations");
 
-    let server = run(listener, pool.clone()).expect("Failed to bind address");
+    let server = run(listener, bom_service.clone()).expect("Failed to bind address");
 
     let _ = tokio::spawn(server);
 
     TestApp {
         addr,
-        pool,
+        bom_service,
         client: reqwest::Client::new(),
     }
 }

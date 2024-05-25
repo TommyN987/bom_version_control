@@ -52,7 +52,7 @@ impl Repository for BomRepository {
     fn insert(
         &self,
         new_bom: &BOM,
-        new_bom_components: &Vec<BomComponent>,
+        new_bom_components: &[BomComponent],
         new_bom_version: &BomVersion,
     ) -> Result<(BOM, Vec<(Component, i32)>), DatabaseError> {
         let mut conn = self.pool.get()?;
@@ -66,11 +66,11 @@ impl Repository for BomRepository {
         })
     }
 
-    fn update(
+    fn update_and_archive(
         &self,
         bom_id: Uuid,
         updated_bom: &BOM,
-        updated_bom_components: &Vec<BomComponent>,
+        updated_bom_components: &[BomComponent],
         updated_bom_version: &BomVersion,
     ) -> Result<(BOM, Vec<(Component, i32)>), DatabaseError> {
         let mut conn = self.pool.get()?;
@@ -86,6 +86,23 @@ impl Repository for BomRepository {
         })
     }
 
+    fn get_bom_versions_until_version(
+        &self,
+        bom_id: Uuid,
+        version: i32,
+    ) -> Result<Vec<BomVersion>, DatabaseError> {
+        let mut conn = self.pool.get()?;
+
+        let versions: Vec<BomVersion> = bom_versions::table
+            .filter(bom_versions::bom_id.eq(bom_id))
+            .filter(bom_versions::version.le(version))
+            .order(bom_versions::version.asc())
+            .select(bom_versions::all_columns)
+            .load(&mut conn)?;
+
+        Ok(versions)
+    }
+
     fn find_all_components(&self) -> Result<Vec<Component>, DatabaseError> {
         let mut conn = self.pool.get()?;
 
@@ -98,17 +115,6 @@ impl Repository for BomRepository {
         Ok(components::table
             .find(component_id)
             .first::<Component>(&mut conn)?)
-    }
-
-    fn find_multiple_components_by_id(
-        &self,
-        component_ids: Vec<Uuid>,
-    ) -> Result<Vec<Component>, DatabaseError> {
-        let mut conn = self.pool.get()?;
-
-        Ok(components::table
-            .filter(components::id.eq_any(component_ids))
-            .load::<Component>(&mut conn)?)
     }
 
     fn insert_component(&self, new_component: Component) -> Result<Component, DatabaseError> {
@@ -181,7 +187,7 @@ impl BomRepository {
 
     fn insert_bom_components(
         &self,
-        new_bom_components: &Vec<BomComponent>,
+        new_bom_components: &[BomComponent],
         conn: &mut PgConnection,
     ) -> Result<Vec<BomComponent>, DatabaseError> {
         Ok(diesel::insert_into(boms_components::table)

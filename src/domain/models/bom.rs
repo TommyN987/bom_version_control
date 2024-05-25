@@ -1,11 +1,8 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::domain::{
-    error::DomainError,
-    newtypes::new_bom::NewBOM,
-    validation::{BOMChangeEventValidator, Validator},
-};
+use crate::domain::{error::DomainError, validation::Validator};
 
 use super::{BOMChangeEvent, CountedComponent};
 
@@ -16,6 +13,8 @@ pub struct BOM {
     pub version: i32,
     pub description: Option<String>,
     pub components: Vec<CountedComponent>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl Default for BOM {
@@ -26,36 +25,9 @@ impl Default for BOM {
             version: 0,
             description: None,
             components: Vec::new(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
         }
-    }
-}
-
-impl TryFrom<&NewBOM> for BOM {
-    type Error = DomainError;
-
-    fn try_from(value: &NewBOM) -> Result<Self, Self::Error> {
-        if value.events.is_empty() {
-            return Err(DomainError::ValidationError(
-                "Unable to construct BOM without input".to_string(),
-            ));
-        }
-
-        // Check if events include a NameChanged event
-        if !value
-            .events
-            .iter()
-            .any(|event| matches!(event, BOMChangeEvent::NameChanged(_)))
-        {
-            return Err(DomainError::ValidationError(
-                "Creating a BOM without name is not allowed. Please provide a name".to_string(),
-            ));
-        }
-
-        let mut bom = BOM::default();
-        for event in value.events.iter() {
-            bom.apply_change(event, BOMChangeEventValidator)?;
-        }
-        Ok(bom)
     }
 }
 
@@ -96,6 +68,7 @@ impl BOM {
     }
 
     pub fn clean_for_revert(&mut self) {
+        self.description = None;
         self.components.clear();
     }
 }
@@ -105,7 +78,10 @@ mod tests {
     use mockall::{mock, predicate::*};
 
     use super::*;
-    use crate::domain::{newtypes::new_bom, BOMChangeEvent, Component, Price};
+    use crate::domain::{
+        newtypes::new_bom::{self, NewBOM},
+        BOMChangeEvent, Component, Price,
+    };
 
     mock! {
         pub BOMChangeEventValidator {}
@@ -299,11 +275,11 @@ mod tests {
     #[test]
     fn test_try_from_bom() {
         let component = create_test_component();
-        let events = vec![
+        let events = Box::new(vec![
             BOMChangeEvent::NameChanged("Test BOM".to_string()),
             BOMChangeEvent::DescriptionChanged("Test Description".to_string()),
             BOMChangeEvent::ComponentAdded(component.clone(), 1),
-        ];
+        ]);
 
         let new_bom = new_bom::NewBOM { events };
 
@@ -318,7 +294,7 @@ mod tests {
 
     #[test]
     fn test_try_from_bom_with_empty_events() {
-        let events = vec![];
+        let events = Box::new(vec![]);
 
         let new_bom = new_bom::NewBOM { events };
 
@@ -334,10 +310,10 @@ mod tests {
     #[test]
     fn test_try_from_bom_without_name_changed_event() {
         let component = create_test_component();
-        let events = vec![
+        let events = Box::new(vec![
             BOMChangeEvent::DescriptionChanged("Test Description".to_string()),
             BOMChangeEvent::ComponentAdded(component.clone(), 1),
-        ];
+        ]);
 
         let new_bom = new_bom::NewBOM { events };
 
@@ -357,18 +333,20 @@ mod tests {
         let components: Vec<(Component, i32)> =
             (1..=5).map(|i| (create_test_component(), i)).collect();
 
+        let events: Vec<BOMChangeEvent> = vec![
+            BOMChangeEvent::NameChanged("Test BOM".to_string()),
+            BOMChangeEvent::DescriptionChanged("Test Description".to_string()),
+        ]
+        .into_iter()
+        .chain(
+            components
+                .iter()
+                .map(|(c, q)| BOMChangeEvent::ComponentAdded(c.clone(), *q)),
+        )
+        .collect();
+
         let new_bom = NewBOM {
-            events: vec![
-                BOMChangeEvent::NameChanged("Test BOM".to_string()),
-                BOMChangeEvent::DescriptionChanged("Test Description".to_string()),
-            ]
-            .into_iter()
-            .chain(
-                components
-                    .iter()
-                    .map(|(c, q)| BOMChangeEvent::ComponentAdded(c.clone(), *q)),
-            )
-            .collect(),
+            events: Box::new(events),
         };
 
         let bom = BOM::try_from(&new_bom).unwrap();
