@@ -1,5 +1,3 @@
-use std::vec;
-
 use diesel::{ExpressionMethods, JoinOnDsl, PgConnection, QueryDsl, RunQueryDsl};
 use uuid::Uuid;
 
@@ -29,15 +27,14 @@ impl Repository for BomRepository {
     fn find_all(&self) -> Result<Vec<(BOM, Vec<(Component, i32)>)>, DatabaseError> {
         let mut conn = self.pool.get()?;
 
-        let mut result: Vec<(BOM, Vec<(Component, i32)>)> = vec![];
         let boms = self.find_all_boms(&mut conn)?;
 
-        for bom in boms {
-            let components = self.find_components_of_bom_by_bom_id(bom.id, &mut conn)?;
-            result.push((bom, components));
-        }
-
-        Ok(result)
+        boms.into_iter()
+            .map(|bom| {
+                let components = self.find_components_of_bom_by_bom_id(bom.id, &mut conn)?;
+                Ok((bom, components))
+            })
+            .collect::<Result<Vec<_>, DatabaseError>>()
     }
 
     fn find_by_id(&self, bom_id: Uuid) -> Result<(BOM, Vec<(Component, i32)>), DatabaseError> {

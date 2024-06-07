@@ -20,7 +20,7 @@ async fn create_bom_returns_created() {
         .await;
 
     // Act
-    let response = app.post_bom(&vec![comp]).await;
+    let response = app.post_bom(&[comp]).await;
 
     // Assert
     assert_eq!(response.status().as_u16(), 201);
@@ -70,7 +70,7 @@ async fn get_bom_by_id_returns_correct_bom() {
         .await;
 
     let added_bom: BOM = app
-        .post_bom(&vec![comp])
+        .post_bom(&[comp])
         .await
         .json()
         .await
@@ -122,7 +122,7 @@ async fn update_bom_with_invalid_input_returns_bad_request() {
         .await;
 
     let added_bom = app
-        .post_bom(&vec![comp])
+        .post_bom(&[comp])
         .await
         .json::<BOM>()
         .await
@@ -150,7 +150,7 @@ async fn update_bom_returns_created() {
         .await;
 
     let added_bom = app
-        .post_bom(&vec![comp.clone()])
+        .post_bom(&[comp.clone()])
         .await
         .json::<BOM>()
         .await
@@ -182,7 +182,7 @@ async fn update_bom_archives_old_bom() {
         .await;
 
     let added_bom = app
-        .post_bom(&vec![comp.clone()])
+        .post_bom(&[comp.clone()])
         .await
         .json::<BOM>()
         .await
@@ -244,7 +244,7 @@ async fn get_bom_diff_returns_correct_diffs() {
         .await;
 
     let added_bom = app
-        .post_bom(&vec![comp.clone()])
+        .post_bom(&[comp.clone()])
         .await
         .json::<BOM>()
         .await
@@ -312,7 +312,7 @@ async fn get_bom_version_returns_correct_version() {
         .await;
 
     let added_bom = app
-        .post_bom(&vec![comp.clone()])
+        .post_bom(&[comp.clone()])
         .await
         .json::<BOM>()
         .await
@@ -360,7 +360,7 @@ async fn revert_bom_to_version_reverts_to_correct_version() {
         .await;
 
     let added_bom = app
-        .post_bom(&vec![comp.clone()])
+        .post_bom(&[comp.clone()])
         .await
         .json::<BOM>()
         .await

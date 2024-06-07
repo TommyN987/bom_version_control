@@ -83,8 +83,7 @@ impl BomService {
 
         let new_bom_components = self.transform_counted_components(&bom.id, &bom.components);
 
-        let new_bom_version: DbBomVersion =
-            BomVersion::new(&bom.id, 0, Box::new(new_bom.events)).try_into()?;
+        let new_bom_version: DbBomVersion = BomVersion::new(bom.id, 0, new_bom.events).into();
 
         let (bom, components) =
             self.repo
@@ -98,7 +97,7 @@ impl BomService {
     pub fn update_bom(
         &self,
         bom_id: Uuid,
-        change_events: Box<Vec<BOMChangeEvent>>,
+        change_events: Vec<BOMChangeEvent>,
         operation: UpdateOperation,
     ) -> Result<BOM, ServiceError> {
         let mut bom = BOM::from(self.repo.find_by_id(bom_id)?);
@@ -119,7 +118,7 @@ impl BomService {
         let new_bom_components = self.transform_counted_components(&bom_id, &bom.components);
 
         let new_bom_version: DbBomVersion =
-            BomVersion::new(&bom.id, bom.version, change_events).try_into()?;
+            BomVersion::new(bom.id, bom.version, change_events).into();
 
         let bom: DbBOM = bom.into();
 
@@ -133,13 +132,10 @@ impl BomService {
     pub fn revert_bom_to_version(&self, bom_id: Uuid, version: i32) -> Result<BOM, ServiceError> {
         let versions = self.fetch_bom_versions_until_version(bom_id, version)?;
 
-        let mut change_events: Box<Vec<BOMChangeEvent>> = Box::default();
-
-        versions.into_iter().for_each(|version| {
-            version.changes.into_iter().for_each(|change_event| {
-                change_events.push(change_event);
-            })
-        });
+        let change_events = versions
+            .into_iter()
+            .flat_map(|version| version.changes)
+            .collect();
 
         self.update_bom(bom_id, change_events, UpdateOperation::Revert)
     }
@@ -152,13 +148,9 @@ impl BomService {
 
         versions.into_iter().enumerate().for_each(|(i, version)| {
             if i <= (from - 1) as usize {
-                version.changes.into_iter().for_each(|change_event| {
-                    events_until_starting_bom.push(change_event);
-                })
+                events_until_starting_bom.extend(version.changes);
             } else {
-                version.changes.into_iter().for_each(|change_event| {
-                    events_until_ending_bom.push(change_event);
-                })
+                events_until_ending_bom.extend(version.changes);
             }
         });
 
@@ -237,10 +229,13 @@ impl BomService {
         bom_id: Uuid,
         version: i32,
     ) -> Result<Vec<BomVersion>, ServiceError> {
-        self.repo
+        let bom_versions = self
+            .repo
             .get_bom_versions_until_version(bom_id, version)?
             .into_iter()
-            .map(|version| BomVersion::try_from(version).map_err(ServiceError::from))
-            .collect::<Result<Vec<BomVersion>, ServiceError>>()
+            .map(BomVersion::from)
+            .collect::<Vec<BomVersion>>();
+
+        Ok(bom_versions)
     }
 }
