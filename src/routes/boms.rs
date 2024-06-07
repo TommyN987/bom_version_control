@@ -50,11 +50,7 @@ pub async fn update_bom(
     let bom_id = id.into_inner();
 
     let updated_bom: BOM = actix_web::web::block(move || {
-        bom_service.update_bom(
-            bom_id,
-            Box::new(change_events),
-            UpdateOperation::Incremental,
-        )
+        bom_service.update_bom(bom_id, change_events, UpdateOperation::Incremental)
     })
     .await??;
 

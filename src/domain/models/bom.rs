@@ -345,7 +345,7 @@ mod tests {
         )
         .collect();
 
-        let new_bom = NewBOM { events: events };
+        let new_bom = NewBOM { events };
 
         let bom = BOM::try_from(&new_bom).unwrap();
 

@@ -113,7 +113,7 @@ pub async fn spawn_app() -> TestApp {
 
     let server = run(listener, bom_service.clone()).expect("Failed to bind address");
 
-    let _ = tokio::spawn(server);
+    tokio::spawn(server);
 
     TestApp {
         addr,

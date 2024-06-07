@@ -1,3 +1,4 @@
+use crate::infrastructure::models::bom_version::DbBomVersionChanges;
 use chrono::Utc;
 use uuid::Uuid;
 
@@ -97,33 +98,27 @@ impl From<BOM> for DbBOM {
     }
 }
 
-impl TryFrom<DomainBomVersion> for DbBomVersion {
-    type Error = DomainError;
-
-    fn try_from(value: DomainBomVersion) -> Result<Self, Self::Error> {
-        Ok(Self {
+impl From<DomainBomVersion> for DbBomVersion {
+    fn from(value: DomainBomVersion) -> Self {
+        Self {
             id: value.id,
             bom_id: value.bom_id,
             version: value.version,
-            changes: serde_json::to_value(value.changes)
-                .map_err(|e| DomainError::ConversionError(e.to_string()))?,
+            changes: DbBomVersionChanges(value.changes),
             created_at: Utc::now(),
-        })
+        }
     }
 }
 
-impl TryFrom<DbBomVersion> for DomainBomVersion {
-    type Error = DomainError;
-
-    fn try_from(value: DbBomVersion) -> Result<Self, Self::Error> {
-        Ok(Self {
+impl From<DbBomVersion> for DomainBomVersion {
+    fn from(value: DbBomVersion) -> Self {
+        Self {
             id: value.id,
             bom_id: value.bom_id,
             version: value.version,
-            changes: serde_json::from_value(value.changes)
-                .map_err(|e| DomainError::ConversionError(e.to_string()))?,
+            changes: value.changes.0,
             created_at: value.created_at,
-        })
+        }
     }
 }
 
